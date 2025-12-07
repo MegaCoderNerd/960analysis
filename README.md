@@ -1,73 +1,225 @@
-# React + TypeScript + Vite
+# Chess 960 Analysis
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A comprehensive Chess 960 (Fischer Random) game review website that allows users to analyze their games with Stockfish engine analysis. The UI closely resembles Chess.com's game review interface with a modern dark theme.
 
-Currently, two official plugins are available:
+![Chess 960 Analysis](https://img.shields.io/badge/Chess-960-green)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)
+![React](https://img.shields.io/badge/React-19.2-61dafb)
+![Vite](https://img.shields.io/badge/Vite-7.2-646cff)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Features
 
-## React Compiler
+### 🎮 Game Import Options
+- **Chess.com Integration**: Fetch games by username, date range, or direct URL
+- **Lichess Integration**: Fetch games by username, date range, or direct URL
+- **Direct Import**: Import games via PGN or FEN notation
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### ♟️ Chess 960 Support
+- Proper handling of Fischer Random starting positions (all 960 positions)
+- Correct castling rules for Chess 960
+- Automatic detection and display of starting position number (1-960)
 
-## Expanding the ESLint configuration
+### 🔍 Stockfish Analysis Engine
+- Browser-based Stockfish.js (WebAssembly) for fast analysis
+- Configurable analysis depth (default: 18)
+- Multi-PV analysis showing top 3 engine lines
+- Real-time position evaluation
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### 📊 Chess.com-Style UI
+- **Interactive Chess Board**: Drag and drop pieces, arrow annotations, smooth animations
+- **Evaluation Bar**: Visual representation of position evaluation
+- **Move Classification**: 
+  - ✨ Brilliant (cyan/teal)
+  - ! Great (blue)
+  - ✓ Best/Excellent (green)
+  - ○ Good (light green)
+  - □ Book (gray)
+  - ?! Inaccuracy (yellow)
+  - ? Mistake (orange)
+  - ?? Blunder (red)
+  - ☓ Missed Win (red)
+- **Accuracy Score**: Per-player accuracy percentage based on centipawn loss
+- **Move List Panel**: Scrollable, clickable move list with color-coded badges
+- **Engine Lines**: Top 3 engine lines with evaluations and continuations
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### ⌨️ Keyboard Shortcuts
+- `←` / `→`: Previous/Next move
+- `Home` / `End`: First/Last move
+- `F`: Flip board
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### 🎨 Design
+- Dark theme matching Chess.com's aesthetic
+- Smooth 60fps animations
+- Responsive design (tablet/desktop)
+- Modern, clean interface
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Tech Stack
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+- **Frontend**: React 19.2 + TypeScript 5.9
+- **Build Tool**: Vite 7.2
+- **Styling**: Tailwind CSS 3.4
+- **Chess Logic**: chess.js for move validation
+- **Board**: chessground for interactive chess board
+- **Engine**: Stockfish.js (WebAssembly) - runs entirely in browser
+- **APIs**: Chess.com & Lichess public APIs
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Getting Started
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### Prerequisites
+
+- Node.js 18+ and npm
+
+### Installation
+
+1. Clone the repository:
+\`\`\`bash
+git clone https://github.com/MegaCoderNerd/960analysis.git
+cd 960analysis
+\`\`\`
+
+2. Install dependencies:
+\`\`\`bash
+npm install
+\`\`\`
+
+3. Start the development server:
+\`\`\`bash
+npm run dev
+\`\`\`
+
+4. Open your browser and navigate to \`http://localhost:5173\`
+
+### Build for Production
+
+\`\`\`bash
+npm run build
+\`\`\`
+
+The production build will be in the \`dist\` folder.
+
+### Preview Production Build
+
+\`\`\`bash
+npm run preview
+\`\`\`
+
+## Usage
+
+### Importing a Game
+
+1. **Direct Import** (Recommended for testing):
+   - Click the "Direct" tab
+   - Select "PGN" or "FEN"
+   - Paste your game notation
+   - Click "Import"
+
+2. **Lichess**:
+   - Click the "Lichess" tab
+   - Enter a Lichess username or game URL
+   - Select from the list of Chess960 games
+
+3. **Chess.com**:
+   - Click the "Chess.com" tab
+   - Enter a Chess.com username
+   - Select year and month
+   - Choose from the filtered Chess960 games
+
+### Analyzing a Game
+
+Once a game is loaded:
+1. Use the navigation buttons or arrow keys to move through the game
+2. The Stockfish engine automatically analyzes each position
+3. View the evaluation bar, engine lines, and move classifications
+4. Check player accuracy scores in the left sidebar
+5. Click on any move in the move list to jump to that position
+
+### Example PGN for Testing
+
+\`\`\`pgn
+[Event "Chess960 Game"]
+[Site "Online"]
+[Date "2024.01.01"]
+[White "Player1"]
+[Black "Player2"]
+[Result "1-0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O 9. h3 Nb8 10. d4 Nbd7 1-0
+\`\`\`
+
+## Project Structure
+
+\`\`\`
+src/
+├── components/
+│   ├── Board/          # Chess board, evaluation bar, controls
+│   ├── Analysis/       # Engine lines, accuracy display, move classification
+│   ├── GameImport/     # Import components for different sources
+│   ├── MoveList/       # Move list and move items
+│   └── Layout/         # Header and footer
+├── hooks/              # Custom React hooks
+│   ├── useStockfish.ts    # Stockfish engine hook
+│   ├── useChessGame.ts    # Chess game state management
+│   └── useGameImport.ts   # Game import logic
+├── services/           # API integrations
+│   ├── chesscom.ts        # Chess.com API
+│   ├── lichess.ts         # Lichess API
+│   └── analysis.ts        # Analysis utilities
+├── utils/              # Utility functions
+│   ├── chess960.ts        # Chess 960 position handling
+│   ├── moveClassification.ts  # Move quality classification
+│   └── accuracy.ts        # Accuracy calculation
+├── types/              # TypeScript type definitions
+├── workers/            # Web Workers
+│   └── stockfish.worker.ts   # Stockfish Web Worker
+└── App.tsx            # Main application component
+\`\`\`
+
+## API Integration
+
+### Chess.com API
+- **Endpoint**: \`https://api.chess.com/pub/player/{username}/games/{YYYY}/{MM}\`
+- **Documentation**: [Chess.com API Docs](https://www.chess.com/news/view/published-data-api)
+- **Rate Limiting**: Respectful use recommended
+
+### Lichess API
+- **Endpoint**: \`https://lichess.org/api/games/user/{username}\`
+- **Documentation**: [Lichess API Docs](https://lichess.org/api)
+- **Rate Limiting**: 10 requests per minute for game export
+
+## Performance Notes
+
+- Stockfish analysis runs in a Web Worker for non-blocking UI
+- Analysis is cached to avoid re-computation
+- Chessground provides smooth 60fps board animations
+- Lazy loading of Stockfish WASM on first analysis
+
+## Browser Compatibility
+
+- Chrome/Edge: ✅ Full support
+- Firefox: ✅ Full support
+- Safari: ✅ Full support (WebAssembly required)
+- Mobile browsers: ⚠️ Limited support (desktop recommended)
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+MIT License - feel free to use this project for learning or building your own chess analysis tools.
+
+## Acknowledgments
+
+- [Stockfish](https://stockfishchess.org/) - The powerful chess engine
+- [chess.js](https://github.com/jhlywa/chess.js) - Chess move validation
+- [chessground](https://github.com/lichess-org/chessground) - Interactive chess board
+- [Chess.com](https://www.chess.com/) - UI design inspiration
+- [Lichess](https://lichess.org/) - Open-source chess platform
+
+## Support
+
+For issues, questions, or feature requests, please open an issue on GitHub.
+
+---
+
+Made with ♟️ by MegaCoderNerd
