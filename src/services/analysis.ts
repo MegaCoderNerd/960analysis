@@ -1,5 +1,5 @@
 import type { AnalyzedMove, ChessGame, AccuracyScore } from '../types';
-import { classifyMove } from '../utils/moveClassification';
+import { classifyMove, calculateCentipawnLoss } from '../utils/moveClassification';
 import { calculateAccuracy } from '../utils/accuracy';
 
 export interface AnalysisProgress {
@@ -42,7 +42,8 @@ export function updateMoveWithAnalysis(
   moves: AnalyzedMove[],
   moveIndex: number,
   evaluation: number,
-  bestMove: string
+  bestMove: string,
+  bestMoveEvaluation: number
 ): AnalyzedMove[] {
   const updatedMoves = [...moves];
   const move = updatedMoves[moveIndex];
@@ -53,11 +54,14 @@ export function updateMoveWithAnalysis(
   const previousEval =
     moveIndex > 0 ? updatedMoves[moveIndex - 1].evaluation : null;
 
+  // Calculate centipawn loss
+  const cpLoss = calculateCentipawnLoss(evaluation, previousEval, bestMoveEvaluation);
+
   // Classify the move
   const classification = classifyMove(
     evaluation,
     previousEval,
-    evaluation, // Best move eval (same as current for simplification)
+    bestMoveEvaluation,
     false,
     Math.floor(moveIndex / 2) + 1
   );
@@ -67,6 +71,7 @@ export function updateMoveWithAnalysis(
     evaluation,
     bestMove,
     classification,
+    centipawnLoss: cpLoss,
   };
 
   return updatedMoves;

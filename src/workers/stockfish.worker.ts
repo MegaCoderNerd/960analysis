@@ -1,6 +1,10 @@
 /// <reference lib="webworker" />
 
-let stockfish: any = null;
+interface StockfishEngine {
+  postMessage: (message: string) => void;
+}
+
+let stockfish: StockfishEngine | null = null;
 
 // Initialize Stockfish
 const initStockfish = async () => {

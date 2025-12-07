@@ -95,13 +95,16 @@ function App() {
     const success = loadGame(pgn, startFen);
     if (success) {
       setShowImport(false);
-      // Calculate accuracy
-      if (gameData?.moves) {
-        const acc = calculateAccuracy(gameData.moves);
-        setAccuracy(acc);
-      }
     }
   };
+
+  // Calculate accuracy when game data changes
+  useEffect(() => {
+    if (gameData?.moves) {
+      const acc = calculateAccuracy(gameData.moves);
+      setAccuracy(acc);
+    }
+  }, [gameData]);
 
   const handleNewGame = () => {
     setShowImport(true);

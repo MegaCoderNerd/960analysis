@@ -88,7 +88,10 @@ function generatePosition(b1: number, b2: number, q: number, n: number): string 
   pieces[emptySquares[1]] = 'k';
   pieces[emptySquares[2]] = 'r';
   
-  return pieces.join('').toUpperCase() + '/pppppppp/8/8/8/8/PPPPPPPP/' + pieces.join('');
+  const rank8 = pieces.join('');  // Black pieces (lowercase)
+  const rank1 = pieces.join('').toUpperCase();  // White pieces (uppercase)
+  
+  return rank8 + '/pppppppp/8/8/8/8/PPPPPPPP/' + rank1;
 }
 
 // Parse Chess960 castling rights from FEN

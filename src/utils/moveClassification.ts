@@ -23,7 +23,7 @@ export function classifyMove(
   }
 
   // Calculate centipawn loss
-  const cpLoss = calculateCentipawnLoss(currentEval, bestMoveEval);
+  const cpLoss = calculateCentipawnLoss(currentEval, previousEval, bestMoveEval);
 
   // Determine if position is winning/losing
   const isWinningPosition = Math.abs(bestMoveEval) > 300;
@@ -56,14 +56,23 @@ export function classifyMove(
 
 export function calculateCentipawnLoss(
   actualEval: number,
+  previousEval: number | null,
   bestEval: number
 ): number {
+  // If no previous eval, use the actual eval as baseline
+  if (previousEval === null) {
+    return 0;
+  }
+
   // Normalize mate scores
   const normActual = normalizeMateScore(actualEval);
   const normBest = normalizeMateScore(bestEval);
 
-  // CP loss is the difference between best evaluation and actual
-  return normActual - normBest;
+  // CP loss is difference between the evaluation drop from previous position
+  // A good move should maintain or improve the position
+  // From white's perspective: higher is better
+  // Loss = best - actual (how much worse the move is compared to best)
+  return Math.max(0, normBest - normActual);
 }
 
 function normalizeMateScore(score: number): number {

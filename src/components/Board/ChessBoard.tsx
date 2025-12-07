@@ -134,10 +134,13 @@ function getValidMoves(game: Chess): Map<Key, Key[]> {
   const moves = game.moves({ verbose: true });
 
   for (const move of moves) {
-    if (!dests.has(move.from as Key)) {
-      dests.set(move.from as Key, []);
+    const from = move.from as Key;
+    const to = move.to as Key;
+    
+    if (!dests.has(from)) {
+      dests.set(from, []);
     }
-    dests.get(move.from as Key)!.push(move.to as Key);
+    dests.get(from)!.push(to);
   }
 
   return dests;

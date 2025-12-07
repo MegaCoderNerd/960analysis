@@ -36,24 +36,11 @@ function calculatePlayerAccuracy(moves: AnalyzedMove[]): {
   let totalCPLoss = 0;
   let validMoves = 0;
 
-  for (let i = 0; i < moves.length - 1; i++) {
+  for (let i = 0; i < moves.length; i++) {
     const currentMove = moves[i];
-    const nextMove = moves[i + 1];
-
-    if (
-      currentMove.evaluation !== null &&
-      currentMove.evaluation !== undefined &&
-      nextMove.evaluation !== null &&
-      nextMove.evaluation !== undefined
-    ) {
-      // Flip evaluation perspective for black
-      const currentEval =
-        i % 2 === 0 ? currentMove.evaluation : -currentMove.evaluation;
-      const nextEval =
-        i % 2 === 0 ? -nextMove.evaluation : nextMove.evaluation;
-
-      const cpLoss = Math.max(0, nextEval - currentEval);
-      totalCPLoss += cpLoss;
+    
+    if (currentMove.centipawnLoss !== undefined && currentMove.centipawnLoss > 0) {
+      totalCPLoss += currentMove.centipawnLoss;
       validMoves++;
     }
   }
