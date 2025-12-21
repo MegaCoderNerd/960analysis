@@ -15,7 +15,7 @@ import { useGameImport } from './hooks/useGameImport';
 import { useToast } from './hooks/useToast';
 import { calculateAccuracy } from './utils/accuracy';
 import { identifyChess960Position } from './utils/chess960';
-import { classifyMove, calculateCentipawnLoss } from './utils/moveClassification';
+import { classifyMove, calculateCentipawnLoss, detectSacrifice } from './utils/moveClassification';
 import type { AnalyzedMove } from './types';
 
 function App() {
@@ -144,41 +144,60 @@ function App() {
 
     // If analysis just finished (isAnalyzing became false) AND we have a result
     // AND we are waiting for this result (reviewData.length === reviewIndex + 1)
-    // Wait, this effect runs when isAnalyzing changes.
-    // If isAnalyzing is false, and we have currentEvaluation...
     
     if (!isAnalyzing && currentEvaluation !== null && reviewData.length === reviewIndex + 1) {
-      // Save result
+      // Save result: evaluation of this position and what the engine recommends from here
       const newReviewData = [...reviewData, { eval: currentEvaluation, bestMove }];
       setReviewData(newReviewData);
       
       // If this was not the start position (reviewIndex > -1), we can classify the move that led here
       if (reviewIndex > -1) {
         const moveIndex = reviewIndex; // The move we just made to get here
-        // We need:
-        // 1. Eval before move (from reviewData[reviewIndex]) -> This is best move score for side to move
-        // 2. Eval after move (currentEvaluation) -> This is score for opponent
+        const playedMove = gameData.moves[moveIndex];
         
-        const prevPosData = reviewData[reviewIndex]; // Data for position BEFORE the move
-        const bestEvalBefore = prevPosData.eval;
-        const currentEval = currentEvaluation;
+        // prevPosData contains:
+        // - eval: engine's evaluation of position BEFORE the move (from side-to-move's perspective)
+        // - bestMove: what the engine recommended from that position (in UCI format like "e2e4")
+        const prevPosData = reviewData[reviewIndex];
         
-        // Calculate classification
-        // Note: currentEval is from opponent's perspective.
-        // So actual score of the move is -currentEval.
+        // The engine's eval BEFORE the move tells us what you SHOULD have achieved
+        // This is the "best move eval" - what you'd get with optimal play
+        // From the mover's perspective, this is already correct (positive = good for them)
+        const bestMoveEval = prevPosData.eval;
         
+        // currentEvaluation is from the OPPONENT's perspective after the move
+        // So we negate it to get the mover's perspective
+        const evalAfterMove = -currentEvaluation;
+        
+        // Now check if the played move was the engine's best move
+        // We need to compare the played SAN to the engine's recommended move
+        // The engine gives moves in UCI format (e2e4), we have moves in SAN (e4)
+        // We can't directly compare them, so we rely on eval comparison
+        
+        // If evalAfterMove ≈ bestMoveEval (within small margin), it was effectively the best move
+        const cpDifference = bestMoveEval - evalAfterMove;
+        const wasBestMove = cpDifference <= 10; // Within 10 cp = effectively best
+        
+        // Detect if this was a sacrifice (material given up for positional/tactical gain)
+        const isSacrifice = detectSacrifice(playedMove.san, bestMoveEval, evalAfterMove);
+        
+        // Calculate classification using Chess.com's system
         const classification = classifyMove(
-          -currentEval, // Actual score of the move
-          bestEvalBefore, // Use bestEvalBefore as previousEval
-          bestEvalBefore, // Best possible score
-          false, // isBookMove (todo)
-          moveIndex + 1
+          evalAfterMove,     // What we got after the move
+          bestMoveEval,      // What we could have had (eval before = best achievable)
+          bestMoveEval,      // Best possible eval
+          false,             // isBookMove
+          moveIndex + 1,     // Move number
+          wasBestMove,       // Did we play the best move?
+          playedMove.san,    // The move we played
+          prevPosData.bestMove || undefined, // Engine's recommendation
+          isSacrifice        // Was this a sacrifice?
         );
         
-        const cpLoss = calculateCentipawnLoss(-currentEval, bestEvalBefore, bestEvalBefore);
+        const cpLoss = calculateCentipawnLoss(evalAfterMove, bestMoveEval, bestMoveEval);
         
         updateMove(moveIndex, {
-          evaluation: -currentEval, // Store from perspective of player who moved
+          evaluation: evalAfterMove,
           classification,
           centipawnLoss: cpLoss,
           bestMove: prevPosData.bestMove || undefined
