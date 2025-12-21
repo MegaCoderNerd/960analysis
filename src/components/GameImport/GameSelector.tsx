@@ -35,7 +35,6 @@ export function GameSelector({
   const [activeTab, setActiveTab] = useState<'chesscom' | 'lichess' | 'direct'>('direct');
 
   const handleChessComSelect = (game: ChessComGame) => {
-    console.log('Chess.com game selected:', game.url);
     showToast('Loading Chess.com game...', 'info', 2000);
     const fen = extractFenFromPGN(game.pgn);
     onGameSelected(game.pgn, fen || undefined);
@@ -43,7 +42,6 @@ export function GameSelector({
 
   const handleLichessSelect = (game: LichessGame) => {
     if (game.pgn) {
-      console.log('Lichess game selected:', game.id);
       showToast('Loading Lichess game...', 'info', 2000);
       const fen = extractFenFromPGN(game.pgn);
       onGameSelected(game.pgn, fen || undefined);
@@ -56,7 +54,6 @@ export function GameSelector({
     showToast('Fetching game from URL...', 'info');
     const pgn = await onFetchLichessUrl(url);
     if (pgn) {
-      console.log('Lichess URL game fetched successfully');
       const fen = extractFenFromPGN(pgn);
       onGameSelected(pgn, fen || undefined);
     } else {
@@ -67,7 +64,6 @@ export function GameSelector({
   const handlePGNImport = (pgn: string) => {
     const result = importPGN(pgn);
     if (result.success) {
-      console.log('PGN imported successfully');
       const fen = extractFenFromPGN(result.pgn);
       onGameSelected(result.pgn, fen || undefined);
     } else {
@@ -78,7 +74,6 @@ export function GameSelector({
   const handleFENImport = (fen: string) => {
     const result = importFEN(fen);
     if (result.success) {
-      console.log('FEN imported successfully');
       // Create a minimal PGN with normalized FEN as starting position
       const pgn = `[FEN "${result.fen}"]\n[SetUp "1"]\n\n`;
       onGameSelected(pgn, result.fen);

@@ -88,16 +88,15 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [gameData, nextMove, previousMove, firstMove, lastMove, flipBoard]);
 
-  // Analyze current position when move changes
+  // Analyze current position when move changes or game loads
   useEffect(() => {
-    if (gameData && currentMoveIndex >= 0) {
+    if (gameData) {
       const fen = getCurrentFen();
       analyze(fen, { depth: 18 });
     }
   }, [currentMoveIndex, gameData, analyze, getCurrentFen]);
 
   const handleGameSelected = (pgn: string, startFen?: string) => {
-    console.log('Loading game...', { pgn: pgn.substring(0, 100), startFen });
     showToast('Loading game...', 'info', 2000);
     
     const success = loadGame(pgn, startFen);
