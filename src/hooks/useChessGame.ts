@@ -61,8 +61,7 @@ export function useChessGame(): UseChessGameReturn {
               for (const moveStr of moveMatches) {
                 try {
                   newGame.move(moveStr);
-                } catch (moveError) {
-                  console.warn('Failed to apply move:', moveStr, moveError);
+                } catch {
                   // Continue with other moves even if one fails
                 }
               }
@@ -125,8 +124,7 @@ export function useChessGame(): UseChessGameReturn {
         setCurrentMoveIndex(-1);
 
         return true;
-      } catch (error) {
-        console.error('Failed to load game:', error);
+      } catch {
         return false;
       }
     },
@@ -147,8 +145,7 @@ export function useChessGame(): UseChessGameReturn {
         const move = moves[i];
         try {
           game.move(move.san);
-        } catch (error) {
-          console.error('Error replaying move:', error);
+        } catch {
           break;
         }
       }

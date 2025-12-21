@@ -78,7 +78,7 @@ export function updateMoveWithAnalysis(
 }
 
 export function exportAnalyzedPGN(game: ChessGame): string {
-  let pgn = game.pgn;
+  const pgn = game.pgn;
 
   // Add analysis annotations to PGN
   // This would require parsing and rebuilding the PGN with comments

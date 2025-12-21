@@ -29,6 +29,47 @@ export function useStockfish(): UseStockfishReturn {
 
     workerRef.current = worker;
 
+    const handleInfoMessage = (info: string) => {
+      // Parse UCI info string
+      const depthMatch = info.match(/depth (\d+)/);
+      const scoreMatch = info.match(/score (cp|mate) (-?\d+)/);
+      const pvMatch = info.match(/pv (.+)/);
+      const multipvMatch = info.match(/multipv (\d+)/);
+
+      if (depthMatch) {
+        setDepth(parseInt(depthMatch[1]));
+      }
+
+      if (scoreMatch && pvMatch) {
+        const scoreType = scoreMatch[1];
+        const scoreValue = parseInt(scoreMatch[2]);
+        const pv = pvMatch[1].split(' ');
+        const multipv = multipvMatch ? parseInt(multipvMatch[1]) : 1;
+
+        let evaluation: number;
+        if (scoreType === 'mate') {
+          // Convert mate score to centipawns
+          evaluation = scoreValue > 0 ? 10000 + scoreValue : -10000 + scoreValue;
+        } else {
+          evaluation = scoreValue;
+        }
+
+        setCurrentEvaluation(evaluation);
+
+        setEngineLines((prev) => {
+          const newLines = [...prev];
+          const lineIndex = multipv - 1;
+          newLines[lineIndex] = {
+            moves: pv,
+            evaluation,
+            depth: parseInt(depthMatch?.[1] || '0'),
+            multipv,
+          };
+          return newLines.slice(0, 3); // Keep top 3 lines
+        });
+      }
+    };
+
     worker.onmessage = (e) => {
       const { type, data } = e.data;
 
@@ -41,7 +82,7 @@ export function useStockfish(): UseStockfishReturn {
           setIsAnalyzing(false);
           break;
         case 'ready':
-          console.log('Stockfish ready');
+          // Stockfish is ready to analyze
           break;
       }
     };
@@ -49,47 +90,6 @@ export function useStockfish(): UseStockfishReturn {
     return () => {
       worker.terminate();
     };
-  }, []);
-
-  const handleInfoMessage = useCallback((info: string) => {
-    // Parse UCI info string
-    const depthMatch = info.match(/depth (\d+)/);
-    const scoreMatch = info.match(/score (cp|mate) (-?\d+)/);
-    const pvMatch = info.match(/pv (.+)/);
-    const multipvMatch = info.match(/multipv (\d+)/);
-
-    if (depthMatch) {
-      setDepth(parseInt(depthMatch[1]));
-    }
-
-    if (scoreMatch && pvMatch) {
-      const scoreType = scoreMatch[1];
-      const scoreValue = parseInt(scoreMatch[2]);
-      const pv = pvMatch[1].split(' ');
-      const multipv = multipvMatch ? parseInt(multipvMatch[1]) : 1;
-
-      let evaluation: number;
-      if (scoreType === 'mate') {
-        // Convert mate score to centipawns
-        evaluation = scoreValue > 0 ? 10000 + scoreValue : -10000 + scoreValue;
-      } else {
-        evaluation = scoreValue;
-      }
-
-      setCurrentEvaluation(evaluation);
-
-      setEngineLines((prev) => {
-        const newLines = [...prev];
-        const lineIndex = multipv - 1;
-        newLines[lineIndex] = {
-          moves: pv,
-          evaluation,
-          depth: parseInt(depthMatch?.[1] || '0'),
-          multipv,
-        };
-        return newLines.slice(0, 3); // Keep top 3 lines
-      });
-    }
   }, []);
 
   const analyze = useCallback(

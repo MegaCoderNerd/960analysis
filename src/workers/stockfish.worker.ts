@@ -14,14 +14,13 @@ async function loadStockfish(): Promise<void> {
   try {
     // Try loading from local public directory first
     importScripts('/stockfish/stockfish.wasm.js');
-  } catch (localError) {
-    console.warn('Local Stockfish not found, falling back to official site');
+  } catch {
+    // Fallback to official Stockfish site
     try {
-      // Fallback to official Stockfish site
       importScripts('https://stockfishchess.org/stockfish.wasm.js');
-    } catch (remoteError) {
-      console.error('Failed to load Stockfish from both local and remote sources');
-      throw remoteError;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to load Stockfish from both local and remote sources: ${errorMessage}`);
     }
   }
 }
@@ -48,9 +47,14 @@ async function initEngine(): Promise<void> {
 
   // Set up message handler to forward UCI messages
   engine.addMessageListener((message: string) => {
-    // Forward info and bestmove messages to main thread
-    if (message.startsWith('info ') || message.startsWith('bestmove ')) {
-      self.postMessage({ type: 'uci', message });
+    // Parse and forward info and bestmove messages appropriately
+    if (message.startsWith('info ')) {
+      self.postMessage({ type: 'info', data: message });
+    } else if (message.startsWith('bestmove ')) {
+      const bestmoveMatch = message.match(/bestmove\s+(\S+)/);
+      if (bestmoveMatch) {
+        self.postMessage({ type: 'bestmove', data: bestmoveMatch[1] });
+      }
     }
     
     // Check for uciok to mark engine as ready
@@ -69,7 +73,6 @@ async function initEngine(): Promise<void> {
  */
 function handleAnalyze(fen: string, options?: { depth?: number; multiPV?: number; threads?: number }): void {
   if (!engine || !isReady) {
-    console.error('Engine not ready');
     return;
   }
 
@@ -112,13 +115,10 @@ self.addEventListener('message', (event: MessageEvent) => {
     case 'stop':
       handleStop();
       break;
-    default:
-      console.warn(`Unknown message type: ${type}`);
   }
 });
 
 // Initialize engine on worker startup
 initEngine().catch((error) => {
-  console.error('Failed to initialize Stockfish:', error);
   self.postMessage({ type: 'error', message: error.message });
 });

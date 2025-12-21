@@ -48,19 +48,10 @@ export async function fetchChessComGames(
   }
 }
 
-export async function fetchChessComGamesByUrl(gameUrl: string): Promise<ChessComGame | null> {
-  try {
-    // Extract game ID from URL
-    // Example: https://www.chess.com/game/live/12345678
-    // Note: Chess.com doesn't have a direct API endpoint for a single game
-    // We would need to fetch the archive and filter
-    // For now, return null and suggest using the archive method
-    console.warn('Direct game URL fetching not supported, use archive method', gameUrl);
-    return null;
-  } catch (error) {
-    console.error('Error fetching Chess.com game:', error);
-    return null;
-  }
+export async function fetchChessComGamesByUrl(): Promise<ChessComGame | null> {
+  // Note: Chess.com doesn't have a direct API endpoint for a single game
+  // This function is not implemented - use the archive method instead
+  return null;
 }
 
 export function parseChessComPGN(pgn: string): {
