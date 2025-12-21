@@ -5,6 +5,7 @@ import { DirectImport } from './DirectImport';
 import type { ChessComGame } from '../../services/chesscom';
 import type { LichessGame } from '../../services/lichess';
 import type { ToastType } from '../UI/Toast';
+import { extractFenFromPGN } from '../../utils/pgn';
 
 interface GameSelectorProps {
   onGameSelected: (pgn: string, startFen?: string) => void;
@@ -36,14 +37,16 @@ export function GameSelector({
   const handleChessComSelect = (game: ChessComGame) => {
     console.log('Chess.com game selected:', game.url);
     showToast('Loading Chess.com game...', 'info', 2000);
-    onGameSelected(game.pgn);
+    const fen = extractFenFromPGN(game.pgn);
+    onGameSelected(game.pgn, fen || undefined);
   };
 
   const handleLichessSelect = (game: LichessGame) => {
     if (game.pgn) {
       console.log('Lichess game selected:', game.id);
       showToast('Loading Lichess game...', 'info', 2000);
-      onGameSelected(game.pgn);
+      const fen = extractFenFromPGN(game.pgn);
+      onGameSelected(game.pgn, fen || undefined);
     } else {
       showToast('Game PGN not available', 'error');
     }
@@ -54,7 +57,8 @@ export function GameSelector({
     const pgn = await onFetchLichessUrl(url);
     if (pgn) {
       console.log('Lichess URL game fetched successfully');
-      onGameSelected(pgn);
+      const fen = extractFenFromPGN(pgn);
+      onGameSelected(pgn, fen || undefined);
     } else {
       showToast('Failed to fetch game from URL', 'error');
     }
@@ -64,7 +68,8 @@ export function GameSelector({
     const result = importPGN(pgn);
     if (result.success) {
       console.log('PGN imported successfully');
-      onGameSelected(result.pgn);
+      const fen = extractFenFromPGN(result.pgn);
+      onGameSelected(result.pgn, fen || undefined);
     } else {
       showToast(result.error || 'Failed to import PGN', 'error');
     }
@@ -74,7 +79,7 @@ export function GameSelector({
     const result = importFEN(fen);
     if (result.success) {
       console.log('FEN imported successfully');
-      // Create a minimal PGN with FEN as starting position
+      // Create a minimal PGN with normalized FEN as starting position
       const pgn = `[FEN "${result.fen}"]\n[SetUp "1"]\n\n`;
       onGameSelected(pgn, result.fen);
     } else {

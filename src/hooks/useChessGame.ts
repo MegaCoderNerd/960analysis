@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { Chess } from 'chess.js';
 import type { ChessGame, AnalyzedMove, GameInfo } from '../types';
 import { identifyChess960Position } from '../utils/chess960';
+import { extractFenFromPGN, extractMovesFromPGN, normalizeChess960Castling } from '../utils/pgn';
 
 interface UseChessGameReturn {
   game: Chess;
@@ -28,29 +29,70 @@ export function useChessGame(): UseChessGameReturn {
   const loadGame = useCallback(
     (pgn: string, startFen?: string): boolean => {
       try {
-        const newGame = new Chess();
-        
-        if (startFen) {
-          newGame.load(startFen);
+        // Extract FEN from PGN if not provided
+        let fenToUse = startFen;
+        if (!fenToUse) {
+          const extractedFen = extractFenFromPGN(pgn);
+          if (extractedFen) {
+            fenToUse = extractedFen;
+          }
         }
 
-        // Load the PGN
-        newGame.loadPgn(pgn);
+        // Normalize Chess960 castling rights (HAha -> KQkq)
+        if (fenToUse) {
+          fenToUse = normalizeChess960Castling(fenToUse);
+        }
 
-        // Extract game info from PGN headers
-        const headers = newGame.header();
+        const newGame = new Chess();
+        
+        // For Chess960 or games with custom starting positions, we need to:
+        // 1. Load the FEN first
+        // 2. Then manually apply each move from the PGN
+        if (fenToUse) {
+          newGame.load(fenToUse);
+          
+          // Extract moves and apply them one by one
+          const movesOnly = extractMovesFromPGN(pgn);
+          if (movesOnly) {
+            // Parse the moves - handle standard algebraic notation including castling
+            // Matches: regular moves (e4, Nf3, Bxe5), captures (exd5), promotions (e8=Q), castling (O-O, O-O-O)
+            const moveMatches = movesOnly.match(/\b(?:O-O-O|O-O|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?)[+#]?\b/g);
+            if (moveMatches) {
+              for (const moveStr of moveMatches) {
+                try {
+                  newGame.move(moveStr);
+                } catch (moveError) {
+                  console.warn('Failed to apply move:', moveStr, moveError);
+                  // Continue with other moves even if one fails
+                }
+              }
+            }
+          }
+        } else {
+          // Standard chess starting position - use loadPgn directly
+          newGame.loadPgn(pgn);
+        }
+
+        // Extract game info from PGN headers (parse manually since we might not have used loadPgn)
+        const whiteMatch = pgn.match(/\[White\s+"([^"]+)"\]/);
+        const blackMatch = pgn.match(/\[Black\s+"([^"]+)"\]/);
+        const resultMatch = pgn.match(/\[Result\s+"([^"]+)"\]/);
+        const dateMatch = pgn.match(/\[Date\s+"([^"]+)"\]/);
+        const eventMatch = pgn.match(/\[Event\s+"([^"]+)"\]/);
+        const siteMatch = pgn.match(/\[Site\s+"([^"]+)"\]/);
+
         const gameInfo: GameInfo = {
-          white: headers.White || 'Unknown',
-          black: headers.Black || 'Unknown',
-          result: headers.Result || '*',
-          date: headers.Date || new Date().toISOString().split('T')[0],
-          event: headers.Event || undefined,
-          site: headers.Site || undefined,
+          white: whiteMatch ? whiteMatch[1] : 'Unknown',
+          black: blackMatch ? blackMatch[1] : 'Unknown',
+          result: resultMatch ? resultMatch[1] : '*',
+          date: dateMatch ? dateMatch[1] : new Date().toISOString().split('T')[0],
+          event: eventMatch ? eventMatch[1] : undefined,
+          site: siteMatch ? siteMatch[1] : undefined,
         };
 
         // Identify Chess960 position if applicable
-        if (startFen) {
-          const posNum = identifyChess960Position(startFen);
+        if (fenToUse) {
+          const posNum = identifyChess960Position(fenToUse);
           if (posNum) {
             gameInfo.startPos = posNum;
           }
@@ -70,15 +112,15 @@ export function useChessGame(): UseChessGameReturn {
           pgn,
           info: gameInfo,
           moves: analyzedMoves,
-          startFen,
+          startFen: fenToUse,
         });
 
         setMoves(analyzedMoves);
         
         // Reset to starting position
         game.reset();
-        if (startFen) {
-          game.load(startFen);
+        if (fenToUse) {
+          game.load(fenToUse);
         }
         setCurrentMoveIndex(-1);
 

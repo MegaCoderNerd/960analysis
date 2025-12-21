@@ -29,22 +29,22 @@ export function DirectImport({ onImportPGN, onImportFEN, showToast }: DirectImpo
   const handleExamplePGN = () => {
     const examplePGN = `[Event "Rated Chess960 game"]
 [Site "https://lichess.org/abc123"]
-[White "Player1"]
-[Black "Player2"]
-[Result "1-0"]
-[FEN "nrkbbqrn/pppppppp/8/8/8/8/PPPPPPPP/NRKBBQRN w KQkq - 0 1"]
+[White "Kine"]
+[Black "Sparky"]
+[Result "0-1"]
+[FEN "rqkbnnbr/pppppppp/8/8/8/8/PPPPPPPP/RQKBNNBR w HAha - 0 1"]
 [SetUp "1"]
 [Variant "Chess960"]
 
-1. e4 e5 2. Nf3 Nf6 3. Bc4 Bc5 4. O-O O-O 5. d3 d6 6. c3 Nc6 1-0`;
+1. f4 Nd6 2. e3 b6 3. Nf3 c6 4. Be2 Ng6 5. Ne5 Nxe5 6. fxe5 Nf5 7. c3 e6 8. g4 Ne7 9. e4 f6 10. Qc2 Bf7 11. exf6 gxf6 12. Ne3 d5 13. exd5 cxd5 14. O-O-O Bc7 15. c4 O-O 16. cxd5 Rc8 17. Kb1 exd5 18. Bd3 Kg7 19. Bxh7 Be5 20. Qd3 Bg6 21. Bxg6 Nxg6 22. Nf5+ Kf7 23. Qxd5+ Kf8 24. Qd7 Qc7 25. Qxc7 Rxc7 26. Be3 Re8 27. Bh6+ Kf7 28. Rhe1 Rc5 29. g5 fxg5 30. Bxg5 Ke6 31. Nh6 Kd5 32. Nf7 Rec8 33. Nxe5 Nxe5 34. Bf6 Rc4 35. Rxe5+ Kd6 0-1`;
     setInputValue(examplePGN);
-    showToast('Example PGN loaded', 'info', 2000);
+    showToast('Example Chess960 PGN loaded', 'info', 2000);
   };
 
   const handleExampleFEN = () => {
-    const exampleFEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    const exampleFEN = 'rqkbnnbr/pppppppp/8/8/8/8/PPPPPPPP/RQKBNNBR w HAha - 0 1';
     setInputValue(exampleFEN);
-    showToast('Example FEN loaded', 'info', 2000);
+    showToast('Example Chess960 FEN loaded', 'info', 2000);
   };
 
   return (
