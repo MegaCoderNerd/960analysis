@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { LichessGame } from '../../services/lichess';
+import type { ToastType } from '../UI/Toast';
 
 interface LichessImportProps {
   onFetchGames: (username: string, since?: number, until?: number) => void;
@@ -7,6 +8,7 @@ interface LichessImportProps {
   games: LichessGame[];
   onSelectGame: (game: LichessGame) => void;
   isLoading: boolean;
+  showToast: (message: string, type?: ToastType, duration?: number) => void;
 }
 
 export function LichessImport({
@@ -15,21 +17,37 @@ export function LichessImport({
   games,
   onSelectGame,
   isLoading,
+  showToast,
 }: LichessImportProps) {
   const [username, setUsername] = useState('');
   const [gameUrl, setGameUrl] = useState('');
   const [importType, setImportType] = useState<'username' | 'url'>('username');
 
   const handleFetchByUsername = () => {
-    if (!username.trim()) return;
+    if (!username.trim()) {
+      showToast('Please enter a username', 'warning');
+      return;
+    }
     // Fetch games from last 30 days by default
     const since = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    showToast('Fetching Lichess games...', 'info');
     onFetchGames(username, since);
   };
 
   const handleFetchByUrl = () => {
-    if (!gameUrl.trim()) return;
+    if (!gameUrl.trim()) {
+      showToast('Please enter a game URL', 'warning');
+      return;
+    }
+    
+    // Validate URL format
+    if (!gameUrl.includes('lichess.org')) {
+      showToast('Invalid Lichess URL. Must contain "lichess.org"', 'error');
+      return;
+    }
+    
     onFetchGameUrl(gameUrl);
+    setGameUrl(''); // Clear URL after fetch
   };
 
   return (
@@ -122,7 +140,7 @@ export function LichessImport({
               <button
                 key={game.id}
                 onClick={() => onSelectGame(game)}
-                className="w-full text-left px-3 py-2 bg-chess-dark hover:bg-chess-dark rounded transition-colors"
+                className="w-full text-left px-3 py-2 bg-chess-dark hover:bg-opacity-80 hover:border-chess-green border border-gray-600 rounded transition-all duration-200"
               >
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-white">

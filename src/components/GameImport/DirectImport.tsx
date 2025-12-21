@@ -1,24 +1,49 @@
 import { useState } from 'react';
+import type { ToastType } from '../UI/Toast';
 
 interface DirectImportProps {
   onImportPGN: (pgn: string) => void;
   onImportFEN: (fen: string) => void;
+  showToast: (message: string, type?: ToastType, duration?: number) => void;
 }
 
-export function DirectImport({ onImportPGN, onImportFEN }: DirectImportProps) {
+export function DirectImport({ onImportPGN, onImportFEN, showToast }: DirectImportProps) {
   const [importType, setImportType] = useState<'pgn' | 'fen'>('pgn');
   const [inputValue, setInputValue] = useState('');
 
   const handleImport = () => {
-    if (!inputValue.trim()) return;
+    if (!inputValue.trim()) {
+      showToast('Please enter some content to import', 'warning');
+      return;
+    }
 
     if (importType === 'pgn') {
       onImportPGN(inputValue);
+      setInputValue('');
     } else {
       onImportFEN(inputValue);
+      setInputValue('');
     }
+  };
 
-    setInputValue('');
+  const handleExamplePGN = () => {
+    const examplePGN = `[Event "Rated Chess960 game"]
+[Site "https://lichess.org/abc123"]
+[White "Player1"]
+[Black "Player2"]
+[Result "1-0"]
+[FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]
+[SetUp "1"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. O-O Nf6 5. d3 d6 6. c3 O-O 1-0`;
+    setInputValue(examplePGN);
+    showToast('Example PGN loaded', 'info', 2000);
+  };
+
+  const handleExampleFEN = () => {
+    const exampleFEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    setInputValue(exampleFEN);
+    showToast('Example FEN loaded', 'info', 2000);
   };
 
   return (
@@ -51,6 +76,17 @@ export function DirectImport({ onImportPGN, onImportFEN }: DirectImportProps) {
 
       {/* Input area */}
       <div className="mb-4">
+        <div className="flex justify-between items-center mb-2">
+          <label className="text-sm text-gray-400">
+            {importType === 'pgn' ? 'PGN Notation' : 'FEN String'}
+          </label>
+          <button
+            onClick={importType === 'pgn' ? handleExamplePGN : handleExampleFEN}
+            className="text-xs text-chess-green hover:underline"
+          >
+            Load Example
+          </button>
+        </div>
         <textarea
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}

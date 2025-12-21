@@ -8,9 +8,11 @@ import { MoveList } from './components/MoveList/MoveList';
 import { EngineLines } from './components/Analysis/EngineLines';
 import { AccuracyDisplay } from './components/Analysis/AccuracyDisplay';
 import { GameSelector } from './components/GameImport/GameSelector';
+import { ToastContainer } from './components/UI/Toast';
 import { useChessGame } from './hooks/useChessGame';
 import { useStockfish } from './hooks/useStockfish';
 import { useGameImport } from './hooks/useGameImport';
+import { useToast } from './hooks/useToast';
 import { calculateAccuracy } from './utils/accuracy';
 import { identifyChess960Position } from './utils/chess960';
 
@@ -48,9 +50,12 @@ function App() {
     fetchFromChessCom,
     fetchFromLichess,
     fetchLichessGameUrl,
+    importPGN,
+    importFEN,
     clearError,
   } = useGameImport();
 
+  const { toasts, showToast, removeToast } = useToast();
   const [showImport, setShowImport] = useState(true);
   const [accuracy, setAccuracy] = useState({ white: 0, black: 0, whiteAvgCPLoss: 0, blackAvgCPLoss: 0 });
 
@@ -92,9 +97,15 @@ function App() {
   }, [currentMoveIndex, gameData, analyze, getCurrentFen]);
 
   const handleGameSelected = (pgn: string, startFen?: string) => {
+    console.log('Loading game...', { pgn: pgn.substring(0, 100), startFen });
+    showToast('Loading game...', 'info', 2000);
+    
     const success = loadGame(pgn, startFen);
     if (success) {
       setShowImport(false);
+      showToast('Game loaded successfully!', 'success');
+    } else {
+      showToast('Failed to load game. Please check the PGN format.', 'error');
     }
   };
 
@@ -118,6 +129,7 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-chess-darker">
+      <ToastContainer toasts={toasts} onClose={removeToast} />
       <Header />
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-6">
@@ -131,6 +143,9 @@ function App() {
               onFetchLichess={fetchFromLichess}
               onFetchLichessUrl={fetchLichessGameUrl}
               isLoading={isLoading}
+              importPGN={importPGN}
+              importFEN={importFEN}
+              showToast={showToast}
             />
             {error && (
               <div className="mt-4 p-4 bg-red-900 bg-opacity-50 rounded-lg text-red-200">
