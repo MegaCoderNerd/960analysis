@@ -69,14 +69,14 @@ function calculatePlayerAccuracy(moves: AnalyzedMove[]): {
       // Good range: 94-90%
       moveAccuracy = 94 - ((cpLoss - 25) * 0.16);
     } else if (cpLoss <= 100) {
-      // Inaccuracy range: 90-75%
-      moveAccuracy = 90 - ((cpLoss - 50) * 0.3);
+      // Inaccuracy range: 80-65%
+      moveAccuracy = 80 - ((cpLoss - 50) * 0.3);
     } else if (cpLoss <= 200) {
-      // Mistake range: 75-50%
-      moveAccuracy = 75 - ((cpLoss - 100) * 0.25);
+      // Mistake range: 65-45%
+      moveAccuracy = 65 - ((cpLoss - 100) * 0.2);
     } else if (cpLoss <= 300) {
-      // Blunder range: 50-35%
-      moveAccuracy = 50 - ((cpLoss - 200) * 0.15);
+      // Blunder range: 40-25%
+      moveAccuracy = 40 - ((cpLoss - 200) * 0.15);
     } else {
       // Severe blunder: 35-25% (never drop below 0)
       moveAccuracy = Math.max(0, 35 - ((cpLoss - 300) * 0.1));
