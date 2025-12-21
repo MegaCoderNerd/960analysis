@@ -16,7 +16,11 @@ async function loadStockfish(): Promise<void> {
     importScripts('/stockfish/stockfish.wasm.js');
   } catch {
     // Fallback to official Stockfish site
-    importScripts('https://stockfishchess.org/stockfish.wasm.js');
+    try {
+      importScripts('https://stockfishchess.org/stockfish.wasm.js');
+    } catch (error) {
+      throw new Error('Failed to load Stockfish from both local and remote sources');
+    }
   }
 }
 
