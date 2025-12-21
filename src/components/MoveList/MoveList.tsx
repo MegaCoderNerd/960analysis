@@ -20,8 +20,8 @@ export function MoveList({ moves, currentMoveIndex, onMoveClick }: MoveListProps
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-chess-darker rounded-lg p-3">
-      <h3 className="text-lg font-semibold mb-3 text-white">Moves</h3>
+    <div className="h-[600px] overflow-y-auto bg-chess-darker rounded-lg p-3">
+      <h3 className="text-lg font-semibold mb-3 text-white sticky top-0 bg-chess-darker z-10 pb-2">Moves</h3>
       <div className="space-y-1">
         {movePairs.map((pair, pairIndex) => (
           <div key={pairIndex} className="flex items-center gap-2">

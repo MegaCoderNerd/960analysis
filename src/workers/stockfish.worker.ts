@@ -1,107 +1,91 @@
 /// <reference lib="webworker" />
 
-// Import Stockfish types
-import type { StockfishEngine } from '../types/stockfish';
+/**
+ * Stockfish Web Worker
+ * Uses the stockfish.js package as a nested worker
+ */
 
-let engine: StockfishEngine | null = null;
+let stockfishWorker: Worker | null = null;
 let isReady = false;
 
 /**
- * Load Stockfish WASM loader script
- * Tries local path first, falls back to official site
- */
-async function loadStockfish(): Promise<void> {
-  try {
-    // Try loading from local public directory first
-    importScripts('/stockfish/stockfish.wasm.js');
-  } catch {
-    // Fallback to official Stockfish site
-    try {
-      importScripts('https://stockfishchess.org/stockfish.wasm.js');
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      throw new Error(`Failed to load Stockfish from both local and remote sources: ${errorMessage}`);
-    }
-  }
-}
-
-/**
- * Initialize Stockfish engine
+ * Initialize Stockfish engine by creating a nested worker
  */
 async function initEngine(): Promise<void> {
-  await loadStockfish();
-  
-  // The Stockfish loader exposes a factory function (commonly named Stockfish or stockfish)
-  const StockfishFactory = (self as any).Stockfish || (self as any).stockfish;
-  
-  if (!StockfishFactory) {
-    throw new Error('Stockfish factory not found after loading script');
-  }
-
-  // Instantiate the engine
-  engine = await StockfishFactory();
-  
-  if (!engine) {
-    throw new Error('Failed to instantiate Stockfish engine');
-  }
-
-  // Set up message handler to forward UCI messages
-  engine.addMessageListener((message: string) => {
-    // Parse and forward info and bestmove messages appropriately
-    if (message.startsWith('info ')) {
-      self.postMessage({ type: 'info', data: message });
-    } else if (message.startsWith('bestmove ')) {
-      const bestmoveMatch = message.match(/bestmove\s+(\S+)/);
-      if (bestmoveMatch) {
-        self.postMessage({ type: 'bestmove', data: bestmoveMatch[1] });
-      }
-    }
+  try {
+    // Create a nested worker from the stockfish.js package
+    // The stockfish.wasm.js file from the package is designed to be used as a Worker
+    stockfishWorker = new Worker('/stockfish.wasm.js');
     
-    // Check for uciok to mark engine as ready
-    if (message === 'uciok') {
-      isReady = true;
-      self.postMessage({ type: 'ready' });
-    }
-  });
+    // Set up message handler to forward UCI messages
+    stockfishWorker.onmessage = (event) => {
+      const message = event.data;
+      
+      // Parse and forward info and bestmove messages appropriately
+      if (typeof message === 'string') {
+        if (message.startsWith('info ')) {
+          self.postMessage({ type: 'info', data: message });
+        } else if (message.startsWith('bestmove ')) {
+          const bestmoveMatch = message.match(/bestmove\s+(\S+)/);
+          if (bestmoveMatch) {
+            self.postMessage({ type: 'bestmove', data: bestmoveMatch[1] });
+          }
+        }
+        
+        // Check for uciok to mark engine as ready
+        if (message === 'uciok') {
+          isReady = true;
+          self.postMessage({ type: 'ready' });
+        }
+      }
+    };
+    
+    stockfishWorker.onerror = (error) => {
+      self.postMessage({ type: 'error', message: error.message || 'Stockfish worker error' });
+    };
 
-  // Initialize UCI protocol
-  engine.postMessage('uci');
+    // Initialize UCI protocol
+    stockfishWorker.postMessage('uci');
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Failed to load Stockfish: ${errorMessage}`);
+  }
 }
 
 /**
  * Handle analyze message
  */
 function handleAnalyze(fen: string, options?: { depth?: number; multiPV?: number; threads?: number }): void {
-  if (!engine || !isReady) {
+  if (!stockfishWorker || !isReady) {
     return;
   }
 
   // Set options if provided
   if (options?.threads) {
-    engine.postMessage(`setoption name Threads value ${options.threads}`);
+    stockfishWorker.postMessage(`setoption name Threads value ${options.threads}`);
   }
   
   if (options?.multiPV) {
-    engine.postMessage(`setoption name MultiPV value ${options.multiPV}`);
+    stockfishWorker.postMessage(`setoption name MultiPV value ${options.multiPV}`);
   }
 
   // Set position
-  engine.postMessage(`position fen ${fen}`);
+  stockfishWorker.postMessage(`position fen ${fen}`);
 
   // Start analysis
   const depth = options?.depth || 20;
-  engine.postMessage(`go depth ${depth}`);
+  stockfishWorker.postMessage(`go depth ${depth}`);
 }
 
 /**
  * Handle stop message
  */
 function handleStop(): void {
-  if (!engine) {
+  if (!stockfishWorker) {
     return;
   }
   
-  engine.postMessage('stop');
+  stockfishWorker.postMessage('stop');
 }
 
 // Listen for messages from main thread

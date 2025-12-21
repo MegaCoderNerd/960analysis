@@ -160,9 +160,9 @@ function App() {
             )}
           </div>
         ) : gameData ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="flex flex-col xl:grid xl:grid-cols-[minmax(300px,1fr)_auto_minmax(300px,1fr)] gap-6">
             {/* Left sidebar - Game info and accuracy */}
-            <div className="space-y-4">
+            <div className="space-y-4 xl:max-w-md">
               <div className="bg-chess-dark rounded-lg p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-xl font-bold text-white">Game Info</h2>
@@ -236,7 +236,7 @@ function App() {
             </div>
 
             {/* Right sidebar - Move list */}
-            <div>
+            <div className="xl:max-w-md">
               <MoveList
                 moves={gameData.moves}
                 currentMoveIndex={currentMoveIndex}
