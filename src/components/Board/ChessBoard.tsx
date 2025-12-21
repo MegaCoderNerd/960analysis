@@ -9,6 +9,7 @@ import 'chessground/assets/chessground.cburnett.css';
 
 interface ChessBoardProps {
   game: Chess;
+  fen: string;
   orientation: 'white' | 'black';
   onMove?: (from: string, to: string) => void;
   highlightLastMove?: boolean;
@@ -19,6 +20,7 @@ interface ChessBoardProps {
 
 export function ChessBoard({
   game,
+  fen,
   orientation,
   onMove,
   highlightLastMove = true,
@@ -76,7 +78,7 @@ export function ChessBoard({
     if (!chessgroundRef.current) return;
 
     chessgroundRef.current.set({
-      fen: game.fen(),
+      fen: fen,
       movable: {
         dests: getValidMoves(game),
       },
@@ -92,7 +94,7 @@ export function ChessBoard({
         lastMove: [lastMove.from, lastMove.to],
       });
     }
-  }, [game, highlightLastMove]);
+  }, [game, fen, highlightLastMove]);
 
   // Update orientation
   useEffect(() => {

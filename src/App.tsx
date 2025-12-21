@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Header } from './components/Layout/Header';
 import { Footer } from './components/Layout/Footer';
 import { ChessBoard } from './components/Board/ChessBoard';
@@ -6,7 +6,7 @@ import { EvaluationBar } from './components/Board/EvaluationBar';
 import { BoardControls } from './components/Board/BoardControls';
 import { MoveList } from './components/MoveList/MoveList';
 import { EngineLines } from './components/Analysis/EngineLines';
-import { AccuracyDisplay } from './components/Analysis/AccuracyDisplay';
+import { GameReviewSummary } from './components/Analysis/GameReviewSummary';
 import { GameSelector } from './components/GameImport/GameSelector';
 import { ToastContainer } from './components/UI/Toast';
 import { useChessGame } from './hooks/useChessGame';
@@ -15,6 +15,8 @@ import { useGameImport } from './hooks/useGameImport';
 import { useToast } from './hooks/useToast';
 import { calculateAccuracy } from './utils/accuracy';
 import { identifyChess960Position } from './utils/chess960';
+import { classifyMove, calculateCentipawnLoss } from './utils/moveClassification';
+import type { AnalyzedMove } from './types';
 
 function App() {
   const {
@@ -30,6 +32,7 @@ function App() {
     getCurrentFen,
     flipBoard,
     boardOrientation,
+    updateMove,
   } = useChessGame();
 
   const {
@@ -58,6 +61,12 @@ function App() {
   const { toasts, showToast, removeToast } = useToast();
   const [showImport, setShowImport] = useState(true);
   const [accuracy, setAccuracy] = useState({ white: 0, black: 0, whiteAvgCPLoss: 0, blackAvgCPLoss: 0 });
+
+
+  // Game Review State
+  const [isReviewing, setIsReviewing] = useState(false);
+  const [reviewIndex, setReviewIndex] = useState(-1); // -1 = start pos, 0 = after move 0, etc.
+  const [reviewData, setReviewData] = useState<{ eval: number; bestMove: string | null }[]>([]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -90,11 +99,115 @@ function App() {
 
   // Analyze current position when move changes or game loads
   useEffect(() => {
-    if (gameData) {
+    if (gameData && !isReviewing) {
       const fen = getCurrentFen();
       analyze(fen, { depth: 18 });
     }
-  }, [currentMoveIndex, gameData, analyze, getCurrentFen]);
+  }, [currentMoveIndex, gameData, analyze, getCurrentFen, isReviewing]);
+
+  // Game Review Logic
+  const startReview = useCallback(() => {
+    if (!gameData) return;
+    setIsReviewing(true);
+    setReviewIndex(-1); // Start with initial position
+    setReviewData([]);
+    goToMove(-1); // Go to start
+    showToast('Starting game review...', 'info', 2000);
+  }, [gameData, goToMove, showToast]);
+
+
+  // Trigger analysis for review step
+  useEffect(() => {
+    if (!isReviewing || !gameData) return;
+    
+    // Ensure board is at the right move
+    if (currentMoveIndex !== reviewIndex) {
+      goToMove(reviewIndex);
+      return; // Wait for move update
+    }
+
+    // If we are not analyzing, start analysis for this position
+    // But we need to make sure we haven't already analyzed it.
+    // We can check reviewData length.
+    // reviewIndex starts at -1. reviewData index 0 corresponds to reviewIndex -1 (start pos).
+    // So if reviewData.length === reviewIndex + 1, we need to analyze.
+    
+    if (!isAnalyzing && reviewData.length === reviewIndex + 1) {
+      const fen = getCurrentFen();
+      analyze(fen, { depth: 15 }); // Lower depth for faster review
+    }
+  }, [isReviewing, reviewIndex, currentMoveIndex, gameData, isAnalyzing, reviewData.length, analyze, getCurrentFen, goToMove]);
+
+  // Handle analysis completion during review
+  useEffect(() => {
+    if (!isReviewing || !gameData) return;
+
+    // If analysis just finished (isAnalyzing became false) AND we have a result
+    // AND we are waiting for this result (reviewData.length === reviewIndex + 1)
+    // Wait, this effect runs when isAnalyzing changes.
+    // If isAnalyzing is false, and we have currentEvaluation...
+    
+    if (!isAnalyzing && currentEvaluation !== null && reviewData.length === reviewIndex + 1) {
+      // Save result
+      const newReviewData = [...reviewData, { eval: currentEvaluation, bestMove }];
+      setReviewData(newReviewData);
+      
+      // If this was not the start position (reviewIndex > -1), we can classify the move that led here
+      if (reviewIndex > -1) {
+        const moveIndex = reviewIndex; // The move we just made to get here
+        // We need:
+        // 1. Eval before move (from reviewData[reviewIndex]) -> This is best move score for side to move
+        // 2. Eval after move (currentEvaluation) -> This is score for opponent
+        
+        const prevPosData = reviewData[reviewIndex]; // Data for position BEFORE the move
+        const bestEvalBefore = prevPosData.eval;
+        const currentEval = currentEvaluation;
+        
+        // Calculate classification
+        // Note: currentEval is from opponent's perspective.
+        // So actual score of the move is -currentEval.
+        
+        const classification = classifyMove(
+          -currentEval, // Actual score of the move
+          bestEvalBefore, // Use bestEvalBefore as previousEval
+          bestEvalBefore, // Best possible score
+          false, // isBookMove (todo)
+          moveIndex + 1
+        );
+        
+        const cpLoss = calculateCentipawnLoss(-currentEval, bestEvalBefore, bestEvalBefore);
+        
+        updateMove(moveIndex, {
+          evaluation: -currentEval, // Store from perspective of player who moved
+          classification,
+          centipawnLoss: cpLoss,
+          bestMove: prevPosData.bestMove || undefined
+        });
+      }
+      
+      // Move to next position
+      if (reviewIndex < gameData.moves.length - 1) {
+        setReviewIndex(prev => prev + 1);
+      } else {
+        // Finished
+        setIsReviewing(false);
+        showToast('Game review completed!', 'success', 3000);
+        // Trigger accuracy update
+        // We need to wait for the last state update to propagate?
+        // calculateAccuracy reads from 'moves'. updateMove updates 'moves'.
+        // We can just call it with the updated moves if we had them, but we don't have the full list here easily.
+        // We can rely on the effect below or just set a flag.
+      }
+    }
+  }, [isAnalyzing, isReviewing, currentEvaluation, bestMove, reviewData, reviewIndex, gameData, updateMove, showToast]);
+
+  // Update accuracy when moves change
+  useEffect(() => {
+    if (gameData?.moves.length) {
+       const acc = calculateAccuracy(gameData.moves);
+       setAccuracy(acc);
+    }
+  }, [gameData?.moves]);
 
   const handleGameSelected = (pgn: string, startFen?: string) => {
     showToast('Loading game...', 'info', 2000);
@@ -107,14 +220,6 @@ function App() {
       showToast('Failed to load game. Please check the PGN format.', 'error');
     }
   };
-
-  // Calculate accuracy when game data changes
-  useEffect(() => {
-    if (gameData?.moves) {
-      const acc = calculateAccuracy(gameData.moves);
-      setAccuracy(acc);
-    }
-  }, [gameData]);
 
   const handleNewGame = () => {
     setShowImport(true);
@@ -166,12 +271,25 @@ function App() {
               <div className="bg-chess-dark rounded-lg p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-xl font-bold text-white">Game Info</h2>
-                  <button
-                    onClick={handleNewGame}
-                    className="px-3 py-1 text-sm bg-chess-darker hover:bg-opacity-80 rounded transition-colors"
-                  >
-                    New Game
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={startReview}
+                      disabled={isReviewing}
+                      className={`px-3 py-1 text-sm rounded transition-colors ${
+                        isReviewing
+                          ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                          : 'bg-green-600 hover:bg-green-500 text-white'
+                      }`}
+                    >
+                      {isReviewing ? `${Math.round(((reviewIndex + 2) / ((gameData?.moves.length || 0) + 1)) * 100)}%` : 'Review'}
+                    </button>
+                    <button
+                      onClick={handleNewGame}
+                      className="px-3 py-1 text-sm bg-chess-darker hover:bg-opacity-80 rounded transition-colors"
+                    >
+                      Back
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-2 text-sm">
                   <div>
@@ -191,13 +309,52 @@ function App() {
                 </div>
               </div>
 
-              <AccuracyDisplay
+              <GameReviewSummary
                 whiteAccuracy={accuracy.white}
                 blackAccuracy={accuracy.black}
-                whiteAvgCPLoss={accuracy.whiteAvgCPLoss}
-                blackAvgCPLoss={accuracy.blackAvgCPLoss}
                 whiteName={gameData.info.white}
                 blackName={gameData.info.black}
+                moves={gameData.moves}
+                onCategoryClick={(category, color) => {
+                  if (!gameData) return;
+                  
+                  // Find next move with this classification and color
+                  // Start searching from current move + 1
+                  let nextIndex = -1;
+                  const startIndex = currentMoveIndex + 1;
+                  
+                  // Search forward
+                  for (let i = startIndex; i < gameData.moves.length; i++) {
+                    const move = gameData.moves[i];
+                    const isWhite = i % 2 === 0;
+                    const moveColor = isWhite ? 'white' : 'black';
+                    
+                    if (move.classification === category && moveColor === color) {
+                      nextIndex = i;
+                      break;
+                    }
+                  }
+                  
+                  // If not found, wrap around and search from beginning
+                  if (nextIndex === -1) {
+                    for (let i = 0; i < startIndex; i++) {
+                      const move = gameData.moves[i];
+                      const isWhite = i % 2 === 0;
+                      const moveColor = isWhite ? 'white' : 'black';
+                      
+                      if (move.classification === category && moveColor === color) {
+                        nextIndex = i;
+                        break;
+                      }
+                    }
+                  }
+                  
+                  if (nextIndex !== -1) {
+                    goToMove(nextIndex);
+                  } else {
+                    showToast(`No ${category} moves found for ${color}`, 'info');
+                  }
+                }}
               />
 
               <EngineLines lines={engineLines} depth={depth} />
@@ -209,6 +366,7 @@ function App() {
                 <EvaluationBar evaluation={currentEvaluation} height={600} />
                 <ChessBoard
                   game={game}
+                  fen={game.fen()}
                   orientation={boardOrientation}
                   bestMove={bestMove}
                   width={600}

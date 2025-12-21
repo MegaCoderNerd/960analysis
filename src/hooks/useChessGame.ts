@@ -1,8 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Chess } from 'chess.js';
 import type { ChessGame, AnalyzedMove, GameInfo } from '../types';
 import { identifyChess960Position } from '../utils/chess960';
-import { extractFenFromPGN, extractMovesFromPGN, normalizeChess960Castling } from '../utils/pgn';
+import { extractFenFromPGN, extractMovesFromPGN, normalizeChess960Castling, cleanPGN, applyChess960Castling } from '../utils/pgn';
 
 interface UseChessGameReturn {
   game: Chess;
@@ -17,6 +17,7 @@ interface UseChessGameReturn {
   getCurrentFen: () => string;
   flipBoard: () => void;
   boardOrientation: 'white' | 'black';
+  updateMove: (index: number, data: Partial<AnalyzedMove>) => void;
 }
 
 export function useChessGame(): UseChessGameReturn {
@@ -25,6 +26,28 @@ export function useChessGame(): UseChessGameReturn {
   const [gameData, setGameData] = useState<ChessGame | null>(null);
   const [boardOrientation, setBoardOrientation] = useState<'white' | 'black'>('white');
   const [moves, setMoves] = useState<AnalyzedMove[]>([]);
+  
+  // Store all FEN positions for direct access (no replay needed)
+  const fenPositionsRef = useRef<string[]>([]);
+
+  const updateMove = useCallback((index: number, data: Partial<AnalyzedMove>) => {
+    setMoves((prev) => {
+      const newMoves = [...prev];
+      if (newMoves[index]) {
+        newMoves[index] = { ...newMoves[index], ...data };
+      }
+      return newMoves;
+    });
+    
+    setGameData((prev) => {
+      if (!prev) return null;
+      const newMoves = [...prev.moves];
+      if (newMoves[index]) {
+        newMoves[index] = { ...newMoves[index], ...data };
+      }
+      return { ...prev, moves: newMoves };
+    });
+  }, []);
 
   const loadGame = useCallback(
     (pgn: string, startFen?: string): boolean => {
@@ -38,41 +61,123 @@ export function useChessGame(): UseChessGameReturn {
           }
         }
 
-        // Normalize Chess960 castling rights (HAha -> KQkq)
-        if (fenToUse) {
+        // Check if this is a Chess960 game
+        const originalFen = fenToUse;
+        const isChess960Game = fenToUse 
+          ? /[A-Ha-h]/.test(fenToUse.split(' ')[2] || '') || pgn.toLowerCase().includes('chess960')
+          : pgn.toLowerCase().includes('chess960');
+
+        // For Chess960, normalize castling rights
+        if (fenToUse && isChess960Game) {
           fenToUse = normalizeChess960Castling(fenToUse);
         }
-
-        const newGame = new Chess();
         
-        // For Chess960 or games with custom starting positions, we need to:
-        // 1. Load the FEN first
-        // 2. Then manually apply each move from the PGN
+        // Reset FEN positions array - index 0 will be starting position
+        const fenPositions: string[] = [];
+        
+        // Create a temporary game to parse moves
+        const tempGame = new Chess();
+        
         if (fenToUse) {
-          newGame.load(fenToUse);
-          
+          // Load starting FEN with skipValidation for Chess960
+          tempGame.load(fenToUse, { skipValidation: true });
+        }
+        
+        // Store starting position FEN
+        fenPositions.push(tempGame.fen());
+
+        // Parse and apply moves
+        const analyzedMoves: AnalyzedMove[] = [];
+        
+        if (fenToUse) {
           // Extract moves and apply them one by one
           const movesOnly = extractMovesFromPGN(pgn);
           if (movesOnly) {
-            // Parse the moves - handle standard algebraic notation including castling
-            // Matches: regular moves (e4, Nf3, Bxe5), captures (exd5), promotions (e8=Q), castling (O-O, O-O-O)
-            const moveMatches = movesOnly.match(/\b(?:O-O-O|O-O|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?)[+#]?\b/g);
-            if (moveMatches) {
-              for (const moveStr of moveMatches) {
-                try {
-                  newGame.move(moveStr);
-                } catch {
-                  // Continue with other moves even if one fails
+            const moveTokens = cleanPGN(movesOnly);
+            
+            for (const token of moveTokens) {
+              let moveApplied = false;
+              const currentFen = tempGame.fen();
+              
+              // For Chess960 castling, use our manual FEN manipulation
+              if (isChess960Game && (token === 'O-O' || token === 'O-O-O')) {
+                const isKingside = token === 'O-O';
+                const newFen = applyChess960Castling(currentFen, isKingside);
+                
+                if (newFen) {
+                  tempGame.load(newFen, { skipValidation: true });
+                  fenPositions.push(newFen);
+                  
+                  // Check if the move results in check
+                  const isCheck = tempGame.inCheck();
+                  
+                  analyzedMoves.push({
+                    san: token,
+                    fen: newFen,
+                    evaluation: null,
+                    isCheck: isCheck,
+                    isCheckmate: tempGame.isCheckmate(),
+                  });
+                  moveApplied = true;
                 }
+              }
+              
+              // Try standard move
+              if (!moveApplied) {
+                try {
+                  const result = tempGame.move(token);
+                  if (result) {
+                    const newFen = tempGame.fen();
+                    fenPositions.push(newFen);
+                    
+                    analyzedMoves.push({
+                      san: result.san,
+                      fen: newFen,
+                      evaluation: null,
+                      isCheck: result.san.includes('+'),
+                      isCheckmate: result.san.includes('#'),
+                    });
+                    moveApplied = true;
+                  }
+                } catch {
+                  // Standard move failed
+                }
+              }
+              
+              if (!moveApplied) {
+                console.warn(`Failed to apply move ${analyzedMoves.length + 1}: ${token}`);
               }
             }
           }
         } else {
-          // Standard chess starting position - use loadPgn directly
-          newGame.loadPgn(pgn);
+          // Standard chess - use loadPgn
+          tempGame.loadPgn(pgn);
+          const history = tempGame.history({ verbose: true });
+          
+          // Rebuild FEN positions
+          const replayGame = new Chess();
+          fenPositions.length = 0;
+          fenPositions.push(replayGame.fen());
+          
+          for (const move of history) {
+            replayGame.move(move.san);
+            const newFen = replayGame.fen();
+            fenPositions.push(newFen);
+            
+            analyzedMoves.push({
+              san: move.san,
+              fen: newFen,
+              evaluation: null,
+              isCheck: move.san.includes('+'),
+              isCheckmate: move.san.includes('#'),
+            });
+          }
         }
 
-        // Extract game info from PGN headers (parse manually since we might not have used loadPgn)
+        // Store FEN positions for direct access
+        fenPositionsRef.current = fenPositions;
+
+        // Extract game info from PGN headers
         const whiteMatch = pgn.match(/\[White\s+"([^"]+)"\]/);
         const blackMatch = pgn.match(/\[Black\s+"([^"]+)"\]/);
         const resultMatch = pgn.match(/\[Result\s+"([^"]+)"\]/);
@@ -90,22 +195,14 @@ export function useChessGame(): UseChessGameReturn {
         };
 
         // Identify Chess960 position if applicable
-        if (fenToUse) {
-          const posNum = identifyChess960Position(fenToUse);
+        if (originalFen) {
+          const posNum = identifyChess960Position(originalFen);
           if (posNum) {
             gameInfo.startPos = posNum;
           }
         }
 
-        // Extract all moves
-        const history = newGame.history({ verbose: true });
-        const analyzedMoves: AnalyzedMove[] = history.map((move) => ({
-          san: move.san,
-          fen: move.after,
-          evaluation: null,
-          isCheck: move.san.includes('+'),
-          isCheckmate: move.san.includes('#'),
-        }));
+        console.log(`Loaded game: ${analyzedMoves.length} moves parsed from PGN`);
 
         setGameData({
           pgn,
@@ -116,15 +213,17 @@ export function useChessGame(): UseChessGameReturn {
 
         setMoves(analyzedMoves);
         
-        // Reset to starting position
+        // Set game to starting position
         game.reset();
         if (fenToUse) {
-          game.load(fenToUse);
+          game.load(fenToUse, { skipValidation: true });
         }
+        
         setCurrentMoveIndex(-1);
 
         return true;
-      } catch {
+      } catch (e) {
+        console.error('Failed to load game:', e);
         return false;
       }
     },
@@ -134,25 +233,20 @@ export function useChessGame(): UseChessGameReturn {
   const goToMove = useCallback(
     (index: number) => {
       if (!gameData) return;
-
-      game.reset();
-      if (gameData.startFen) {
-        game.load(gameData.startFen);
+      
+      // Use stored FEN positions for instant navigation
+      // index -1 = starting position (fenPositions[0])
+      // index 0 = after first move (fenPositions[1])
+      // etc.
+      const fenIndex = index + 1;
+      
+      if (fenIndex >= 0 && fenIndex < fenPositionsRef.current.length) {
+        const targetFen = fenPositionsRef.current[fenIndex];
+        game.load(targetFen, { skipValidation: true });
+        setCurrentMoveIndex(index);
       }
-
-      // Replay moves up to the specified index
-      for (let i = 0; i <= index && i < moves.length; i++) {
-        const move = moves[i];
-        try {
-          game.move(move.san);
-        } catch {
-          break;
-        }
-      }
-
-      setCurrentMoveIndex(index);
     },
-    [game, gameData, moves]
+    [game, gameData]
   );
 
   const nextMove = useCallback(() => {
@@ -198,5 +292,6 @@ export function useChessGame(): UseChessGameReturn {
     getCurrentFen,
     flipBoard,
     boardOrientation,
+    updateMove,
   };
 }
