@@ -19,7 +19,8 @@ async function loadStockfish(): Promise<void> {
     try {
       importScripts('https://stockfishchess.org/stockfish.wasm.js');
     } catch (error) {
-      throw new Error('Failed to load Stockfish from both local and remote sources');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to load Stockfish from both local and remote sources: ${errorMessage}`);
     }
   }
 }
