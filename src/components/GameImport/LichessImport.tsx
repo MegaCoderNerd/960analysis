@@ -40,9 +40,15 @@ export function LichessImport({
       return;
     }
     
-    // Validate URL format
-    if (!gameUrl.includes('lichess.org')) {
-      showToast('Invalid Lichess URL. Must contain "lichess.org"', 'error');
+    // Validate URL format - must be a valid Lichess URL
+    try {
+      const url = new URL(gameUrl);
+      if (url.hostname !== 'lichess.org') {
+        showToast('Invalid Lichess URL. Must be from lichess.org domain', 'error');
+        return;
+      }
+    } catch {
+      showToast('Invalid URL format', 'error');
       return;
     }
     

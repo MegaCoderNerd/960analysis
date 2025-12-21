@@ -52,6 +52,10 @@ function Toast({ toast, onClose }: ToastProps) {
     }
   };
 
+  const getAriaLabel = () => {
+    return `Close ${toast.type} notification`;
+  };
+
   return (
     <div
       className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border-l-4 ${getToastStyles()} text-white min-w-[300px] max-w-[500px] animate-slide-in`}
@@ -61,7 +65,7 @@ function Toast({ toast, onClose }: ToastProps) {
       <button
         onClick={() => onClose(toast.id)}
         className="text-white hover:text-gray-200 transition-colors"
-        aria-label="Close notification"
+        aria-label={getAriaLabel()}
       >
         ✕
       </button>

@@ -103,7 +103,7 @@ export function ChessComImport({
                   </span>
                 </div>
                 <div className="text-xs text-gray-500 mt-1">
-                  {game.time_control} • {game.white.result}
+                  {game.time_control} • Result: {game.white.result}
                 </div>
               </button>
             ))}

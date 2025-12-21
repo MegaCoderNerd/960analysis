@@ -32,10 +32,11 @@ export function DirectImport({ onImportPGN, onImportFEN, showToast }: DirectImpo
 [White "Player1"]
 [Black "Player2"]
 [Result "1-0"]
-[FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]
+[FEN "nrkbbqrn/pppppppp/8/8/8/8/PPPPPPPP/NRKBBQRN w KQkq - 0 1"]
 [SetUp "1"]
+[Variant "Chess960"]
 
-1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. O-O Nf6 5. d3 d6 6. c3 O-O 1-0`;
+1. e4 e5 2. Nf3 Nf6 3. Bc4 Bc5 4. O-O O-O 5. d3 d6 6. c3 Nc6 1-0`;
     setInputValue(examplePGN);
     showToast('Example PGN loaded', 'info', 2000);
   };
