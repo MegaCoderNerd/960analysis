@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import type { ChessComGame } from '../../services/chesscom';
+import type { ToastType } from '../UI/Toast';
 
 interface ChessComImportProps {
   onFetchGames: (username: string, year: number, month: number) => void;
   games: ChessComGame[];
   onSelectGame: (game: ChessComGame) => void;
   isLoading: boolean;
+  showToast: (message: string, type?: ToastType, duration?: number) => void;
 }
 
 export function ChessComImport({
@@ -13,13 +15,18 @@ export function ChessComImport({
   games,
   onSelectGame,
   isLoading,
+  showToast,
 }: ChessComImportProps) {
   const [username, setUsername] = useState('');
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
 
   const handleFetch = () => {
-    if (!username.trim()) return;
+    if (!username.trim()) {
+      showToast('Please enter a username', 'warning');
+      return;
+    }
+    showToast('Fetching Chess.com games...', 'info');
     onFetchGames(username, year, month);
   };
 
@@ -85,15 +92,18 @@ export function ChessComImport({
               <button
                 key={index}
                 onClick={() => onSelectGame(game)}
-                className="w-full text-left px-3 py-2 bg-chess-dark hover:bg-chess-dark rounded transition-colors"
+                className="w-full text-left px-3 py-2 bg-chess-dark hover:bg-opacity-80 hover:border-chess-green border border-gray-600 rounded transition-all duration-200 group"
               >
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-white">
+                  <span className="text-sm text-white group-hover:text-chess-green transition-colors">
                     {game.white.username} vs {game.black.username}
                   </span>
                   <span className="text-xs text-gray-500">
                     {new Date(game.end_time * 1000).toLocaleDateString()}
                   </span>
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {game.time_control} • Result: {game.white.result}
                 </div>
               </button>
             ))}

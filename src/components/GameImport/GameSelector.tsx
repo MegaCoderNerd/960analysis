@@ -4,6 +4,7 @@ import { LichessImport } from './LichessImport';
 import { DirectImport } from './DirectImport';
 import type { ChessComGame } from '../../services/chesscom';
 import type { LichessGame } from '../../services/lichess';
+import type { ToastType } from '../UI/Toast';
 
 interface GameSelectorProps {
   onGameSelected: (pgn: string, startFen?: string) => void;
@@ -13,6 +14,9 @@ interface GameSelectorProps {
   onFetchLichess: (username: string, since?: number, until?: number) => void;
   onFetchLichessUrl: (url: string) => Promise<string | null>;
   isLoading: boolean;
+  importPGN: (pgn: string) => { success: boolean; pgn: string; error?: string };
+  importFEN: (fen: string) => { success: boolean; fen: string; error?: string };
+  showToast: (message: string, type?: ToastType, duration?: number) => void;
 }
 
 export function GameSelector({
@@ -23,34 +27,59 @@ export function GameSelector({
   onFetchLichess,
   onFetchLichessUrl,
   isLoading,
+  importPGN,
+  importFEN,
+  showToast,
 }: GameSelectorProps) {
   const [activeTab, setActiveTab] = useState<'chesscom' | 'lichess' | 'direct'>('direct');
 
   const handleChessComSelect = (game: ChessComGame) => {
+    console.log('Chess.com game selected:', game.url);
+    showToast('Loading Chess.com game...', 'info', 2000);
     onGameSelected(game.pgn);
   };
 
   const handleLichessSelect = (game: LichessGame) => {
     if (game.pgn) {
+      console.log('Lichess game selected:', game.id);
+      showToast('Loading Lichess game...', 'info', 2000);
       onGameSelected(game.pgn);
+    } else {
+      showToast('Game PGN not available', 'error');
     }
   };
 
   const handleLichessUrlFetch = async (url: string) => {
+    showToast('Fetching game from URL...', 'info');
     const pgn = await onFetchLichessUrl(url);
     if (pgn) {
+      console.log('Lichess URL game fetched successfully');
       onGameSelected(pgn);
+    } else {
+      showToast('Failed to fetch game from URL', 'error');
     }
   };
 
   const handlePGNImport = (pgn: string) => {
-    onGameSelected(pgn);
+    const result = importPGN(pgn);
+    if (result.success) {
+      console.log('PGN imported successfully');
+      onGameSelected(result.pgn);
+    } else {
+      showToast(result.error || 'Failed to import PGN', 'error');
+    }
   };
 
   const handleFENImport = (fen: string) => {
-    // Create a minimal PGN with FEN as starting position
-    const pgn = `[FEN "${fen}"]\n[SetUp "1"]\n\n`;
-    onGameSelected(pgn, fen);
+    const result = importFEN(fen);
+    if (result.success) {
+      console.log('FEN imported successfully');
+      // Create a minimal PGN with FEN as starting position
+      const pgn = `[FEN "${result.fen}"]\n[SetUp "1"]\n\n`;
+      onGameSelected(pgn, result.fen);
+    } else {
+      showToast(result.error || 'Failed to import FEN', 'error');
+    }
   };
 
   return (
@@ -94,7 +123,11 @@ export function GameSelector({
       {/* Tab content */}
       <div>
         {activeTab === 'direct' && (
-          <DirectImport onImportPGN={handlePGNImport} onImportFEN={handleFENImport} />
+          <DirectImport 
+            onImportPGN={handlePGNImport} 
+            onImportFEN={handleFENImport}
+            showToast={showToast}
+          />
         )}
         {activeTab === 'lichess' && (
           <LichessImport
@@ -103,6 +136,7 @@ export function GameSelector({
             games={lichessGames}
             onSelectGame={handleLichessSelect}
             isLoading={isLoading}
+            showToast={showToast}
           />
         )}
         {activeTab === 'chesscom' && (
@@ -111,6 +145,7 @@ export function GameSelector({
             games={chessComGames}
             onSelectGame={handleChessComSelect}
             isLoading={isLoading}
+            showToast={showToast}
           />
         )}
       </div>

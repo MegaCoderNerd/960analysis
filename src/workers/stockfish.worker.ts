@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 
 // Import Stockfish types
-import type { StockfishEngine, EngineMessage } from '../types/stockfish';
+import type { StockfishEngine } from '../types/stockfish';
 
 let engine: StockfishEngine | null = null;
 let isReady = false;
