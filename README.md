@@ -9,21 +9,21 @@ A comprehensive Chess 960 (Fischer Random) game review website that allows users
 
 ## Features
 
-### 🎮 Game Import Options
-- **Chess.com Integration**: Fetch games by username, date range, or direct URL
-- **Lichess Integration**: Fetch games by username, date range, or direct URL
+### Game Import Options
+- **Chess.com Integration**: Fetch Chess960 games by username and monthly archive
+- **Lichess Integration**: Fetch Chess960 games by username or game URL
 - **Direct Import**: Import games via PGN or FEN notation
 
-### ♟️ Chess 960 Support
-- Proper handling of Fischer Random starting positions (all 960 positions)
-- Correct castling rules for Chess 960
+### Chess 960 Support
+- All 960 Fischer Random starting positions (Scharnagl numbering; #518 is standard chess)
+- Shredder-FEN (`HAha`) castling rights for Stockfish and KQkq mapping for chess.js
 - Automatic detection and display of starting position number (1-960)
 
-### 🔍 Stockfish Analysis Engine
-- Browser-based Stockfish.js (WebAssembly) for fast analysis
-- Configurable analysis depth (default: 18)
-- Multi-PV analysis showing top 3 engine lines
-- Real-time position evaluation
+### Stockfish Analysis Engine
+- Stockfish 18 lite single-thread WASM in a Web Worker
+- Live analysis of the selected move at depth 18
+- Batch game review at depth 12, with evaluations cached in IndexedDB
+- Multi-PV analysis showing top engine lines
 
 ### 📊 Chess.com-Style UI
 - **Interactive Chess Board**: Drag and drop pieces, arrow annotations, smooth animations
@@ -60,8 +60,8 @@ A comprehensive Chess 960 (Fischer Random) game review website that allows users
 - **Styling**: Tailwind CSS 3.4
 - **Chess Logic**: chess.js for move validation
 - **Board**: chessground for interactive chess board
-- **Engine**: Stockfish.js (WebAssembly) - runs entirely in browser
-- **APIs**: Chess.com & Lichess public APIs
+- **Engine**: Stockfish 18 lite-single (WebAssembly)
+- **APIs**: Chess.com monthly archives and Lichess game export
 
 ## Getting Started
 
@@ -82,12 +82,17 @@ cd 960analysis
 npm install
 \`\`\`
 
-3. Start the development server:
+3. Run unit tests:
+\`\`\`bash
+npm run test
+\`\`\`
+
+4. Start the development server:
 \`\`\`bash
 npm run dev
 \`\`\`
 
-4. Open your browser and navigate to \`http://localhost:5173\`
+5. Open your browser and navigate to \`http://localhost:5173\`
 
 ### Build for Production
 
@@ -128,10 +133,9 @@ npm run preview
 
 Once a game is loaded:
 1. Use the navigation buttons or arrow keys to move through the game
-2. The Stockfish engine automatically analyzes each position
-3. View the evaluation bar, engine lines, and move classifications
-4. Check player accuracy scores in the left sidebar
-5. Click on any move in the move list to jump to that position
+2. The engine analyzes the selected position at depth 18
+3. Click **Review** for a full-game pass at depth 12 (accuracy stays blank until then)
+4. View the evaluation bar, engine lines, and move classifications
 
 ### Example PGN for Testing
 
@@ -163,14 +167,16 @@ src/
 ├── services/           # API integrations
 │   ├── chesscom.ts        # Chess.com API
 │   ├── lichess.ts         # Lichess API
-│   └── analysis.ts        # Analysis utilities
+│   ├── engineSession.ts   # Stockfish UCI session
+│   ├── evalCache.ts       # IndexedDB eval cache
+│   └── http.ts            # fetch retry helper
 ├── utils/              # Utility functions
 │   ├── chess960.ts        # Chess 960 position handling
 │   ├── moveClassification.ts  # Move quality classification
+│   ├── pgn.ts             # PGN replay
+│   ├── uci.ts             # UCI parser
 │   └── accuracy.ts        # Accuracy calculation
 ├── types/              # TypeScript type definitions
-├── workers/            # Web Workers
-│   └── stockfish.worker.ts   # Stockfish Web Worker
 └── App.tsx            # Main application component
 \`\`\`
 
@@ -188,10 +194,10 @@ src/
 
 ## Performance Notes
 
-- Stockfish analysis runs in a Web Worker for non-blocking UI
-- Analysis is cached to avoid re-computation
-- Chessground provides smooth 60fps board animations
-- Lazy loading of Stockfish WASM on first analysis
+- Analysis of the selected move runs in a Web Worker
+- Full-game review uses a small engine pool and IndexedDB caching
+- Chessground provides board rendering
+- Stockfish WASM is copied into `public/stockfish/` when the app starts
 
 ## Browser Compatibility
 
@@ -206,7 +212,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-MIT License - feel free to use this project for learning or building your own chess analysis tools.
+MIT License for application code. Stockfish WASM is GPLv3; see `docs/stockfish.md`.
 
 ## Acknowledgments
 

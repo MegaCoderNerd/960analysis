@@ -5,8 +5,8 @@ import { formatAccuracy } from '../../utils/accuracy';
 
 interface GameReviewSummaryProps {
   moves: AnalyzedMove[];
-  whiteAccuracy: number;
-  blackAccuracy: number;
+  whiteAccuracy: number | null;
+  blackAccuracy: number | null;
   whiteName: string;
   blackName: string;
   onCategoryClick?: (category: MoveClassification, color: 'white' | 'black') => void;
@@ -77,6 +77,9 @@ export function GameReviewSummary({
   return (
     <div className="bg-chess-dark rounded-lg p-4 shadow-lg">
       <h3 className="text-lg font-bold text-white mb-4">Game Review</h3>
+      {whiteAccuracy == null && blackAccuracy == null && (
+        <p className="text-sm text-gray-400 mb-4">Review game to see accuracy</p>
+      )}
       
       {/* Accuracy Header */}
       <div className="grid grid-cols-3 gap-4 mb-6">

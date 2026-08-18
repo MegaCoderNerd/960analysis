@@ -27,8 +27,11 @@ export function useGameImport(): UseGameImportReturn {
       setError(null);
 
       try {
-        const games = await fetchChessComGames(username, year, month);
+        const games = await fetchChessComGames(username, year, month, (waitMs) => {
+          setError(`Rate limit reached. Retrying in ${Math.ceil(waitMs / 1000)}s...`);
+        });
         setChessComGames(games);
+        setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch games');
       } finally {
@@ -44,8 +47,11 @@ export function useGameImport(): UseGameImportReturn {
       setError(null);
 
       try {
-        const games = await fetchLichessGames(username, since, until);
+        const games = await fetchLichessGames(username, since, until, 50, (waitMs) => {
+          setError(`Rate limit reached. Retrying in ${Math.ceil(waitMs / 1000)}s...`);
+        });
         setLichessGames(games);
+        setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch games');
       } finally {

@@ -1,138 +1,146 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { EngineLine, StockfishOptions } from '../types';
+import {
+  EngineSession,
+  type EngineStatus,
+} from '../services/engineSession';
+import type { UciInfo } from '../utils/uci';
 
 interface UseStockfishReturn {
   analyze: (fen: string, options?: Partial<StockfishOptions>) => void;
   stop: () => void;
+  pause: () => void;
+  resume: () => void;
   isAnalyzing: boolean;
   currentEvaluation: number | null;
   bestMove: string | null;
   engineLines: EngineLine[];
   depth: number;
+  status: EngineStatus;
+  error: string | null;
 }
 
 export function useStockfish(): UseStockfishReturn {
-  const workerRef = useRef<Worker | null>(null);
+  const sessionRef = useRef<EngineSession | null>(null);
+  const requestIdRef = useRef(0);
+  const pausedRef = useRef(false);
+  const lastAnalyzeRef = useRef<{ fen: string; options: Partial<StockfishOptions> } | null>(null);
+
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [currentEvaluation, setCurrentEvaluation] = useState<number | null>(null);
   const [bestMove, setBestMove] = useState<string | null>(null);
   const [engineLines, setEngineLines] = useState<EngineLine[]>([]);
   const [depth, setDepth] = useState(0);
+  const [status, setStatus] = useState<EngineStatus>('booting');
+  const [error, setError] = useState<string | null>(null);
 
-  // Initialize Stockfish worker
   useEffect(() => {
-    // Create worker with Stockfish
-    const worker = new Worker(
-      new URL('../workers/stockfish.worker.ts', import.meta.url),
-      { type: 'module' }
-    );
+    const session = new EngineSession();
+    sessionRef.current = session;
 
-    workerRef.current = worker;
+    session.onStatusChange = (nextStatus, nextError) => {
+      setStatus(nextStatus);
+      setError(nextError);
+      if (nextStatus === 'error') {
+        setIsAnalyzing(false);
+      }
+    };
 
-    const handleInfoMessage = (info: string) => {
-      // Parse UCI info string
-      const depthMatch = info.match(/depth (\d+)/);
-      const scoreMatch = info.match(/score (cp|mate) (-?\d+)/);
-      const pvMatch = info.match(/pv (.+)/);
-      const multipvMatch = info.match(/multipv (\d+)/);
+    session.onInfo = (info: UciInfo, requestId: number) => {
+      if (requestId !== requestIdRef.current) return;
+      if (info.bound) return;
 
-      if (depthMatch) {
-        setDepth(parseInt(depthMatch[1]));
+      if (info.depth !== undefined) {
+        setDepth(info.depth);
       }
 
-      if (scoreMatch && pvMatch) {
-        const scoreType = scoreMatch[1];
-        const scoreValue = parseInt(scoreMatch[2]);
-        const pv = pvMatch[1].split(' ');
-        const multipv = multipvMatch ? parseInt(multipvMatch[1]) : 1;
-
-        let evaluation: number;
-        if (scoreType === 'mate') {
-          // Convert mate score to centipawns
-          evaluation = scoreValue > 0 ? 10000 + scoreValue : -10000 + scoreValue;
-        } else {
-          evaluation = scoreValue;
-        }
-
-        setCurrentEvaluation(evaluation);
-
+      if (info.evaluation !== undefined && info.pv) {
+        const multipv = info.multipv ?? 1;
+        setCurrentEvaluation((prev) => (multipv === 1 ? info.evaluation! : prev));
         setEngineLines((prev) => {
-          const newLines = [...prev];
-          const lineIndex = multipv - 1;
-          newLines[lineIndex] = {
-            moves: pv,
-            evaluation,
-            depth: parseInt(depthMatch?.[1] || '0'),
+          const next = [...prev];
+          next[multipv - 1] = {
+            moves: info.pv!,
+            evaluation: info.evaluation!,
+            depth: info.depth ?? 0,
             multipv,
+            mate: info.mate,
           };
-          return newLines.slice(0, 3); // Keep top 3 lines
+          return next.filter(Boolean).slice(0, 3);
         });
       }
     };
 
-    worker.onmessage = (e) => {
-      const { type, data } = e.data;
-
-      switch (type) {
-        case 'info':
-          handleInfoMessage(data);
-          break;
-        case 'bestmove':
-          setBestMove(data);
-          setIsAnalyzing(false);
-          break;
-        case 'ready':
-          // Stockfish is ready to analyze
-          break;
-      }
+    session.onBestMove = (move, _ponder, requestId) => {
+      if (requestId !== requestIdRef.current) return;
+      setBestMove(move === '(none)' ? null : move);
+      setIsAnalyzing(false);
     };
+
+    queueMicrotask(() => {
+      setStatus(session.getStatus());
+      setError(session.getError());
+    });
 
     return () => {
-      worker.terminate();
+      session.terminate();
+      sessionRef.current = null;
     };
   }, []);
 
-  const analyze = useCallback(
-    (fen: string, options: Partial<StockfishOptions> = {}) => {
-      const defaultOptions: StockfishOptions = {
-        depth: 18,
-        multiPv: 3,
-        threads: navigator.hardwareConcurrency || 1,
-      };
+  const analyze = useCallback((fen: string, options: Partial<StockfishOptions> = {}) => {
+    lastAnalyzeRef.current = { fen, options };
+    if (pausedRef.current) return;
 
-      const finalOptions = { ...defaultOptions, ...options };
+    setIsAnalyzing(true);
+    setEngineLines([]);
+    setCurrentEvaluation(null);
+    setBestMove(null);
+    setDepth(0);
 
-      setIsAnalyzing(true);
-      setEngineLines([]);
-      setCurrentEvaluation(null);
-      setBestMove(null);
-      setDepth(0);
+    const session = sessionRef.current;
+    if (!session || session.getStatus() === 'error') {
+      setIsAnalyzing(false);
+      return;
+    }
 
-      if (workerRef.current) {
-        workerRef.current.postMessage({
-          type: 'analyze',
-          fen,
-          options: finalOptions,
-        });
-      }
-    },
-    []
-  );
+    requestIdRef.current = session.analyze(fen, {
+      depth: 18,
+      multiPv: 3,
+      ...options,
+    });
+  }, []);
 
   const stop = useCallback(() => {
-    if (workerRef.current) {
-      workerRef.current.postMessage({ type: 'stop' });
-      setIsAnalyzing(false);
-    }
+    sessionRef.current?.stop();
+    setIsAnalyzing(false);
   }, []);
+
+  const pause = useCallback(() => {
+    pausedRef.current = true;
+    sessionRef.current?.stop();
+    setIsAnalyzing(false);
+  }, []);
+
+  const resume = useCallback(() => {
+    pausedRef.current = false;
+    const pending = lastAnalyzeRef.current;
+    if (pending) {
+      analyze(pending.fen, pending.options);
+    }
+  }, [analyze]);
 
   return {
     analyze,
     stop,
+    pause,
+    resume,
     isAnalyzing,
     currentEvaluation,
     bestMove,
     engineLines,
     depth,
+    status,
+    error,
   };
 }

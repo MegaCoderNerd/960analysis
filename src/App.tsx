@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Layout/Header';
 import { Footer } from './components/Layout/Footer';
 import { ChessBoard } from './components/Board/ChessBoard';
@@ -13,16 +13,24 @@ import { useChessGame } from './hooks/useChessGame';
 import { useStockfish } from './hooks/useStockfish';
 import { useGameImport } from './hooks/useGameImport';
 import { useToast } from './hooks/useToast';
+import { useFastGameReview } from './hooks/useFastGameReview';
 import { calculateAccuracy } from './utils/accuracy';
 import { identifyChess960Position } from './utils/chess960';
-import { classifyMove, calculateCentipawnLoss, detectSacrifice } from './utils/moveClassification';
-import type { AnalyzedMove } from './types';
+import type { AccuracyScore } from './types';
+
+const EMPTY_ACCURACY: AccuracyScore = {
+  white: null,
+  black: null,
+  whiteAvgCPLoss: null,
+  blackAvgCPLoss: null,
+};
 
 function App() {
   const {
     game,
     currentMoveIndex,
     gameData,
+    chess960,
     loadGame,
     goToMove,
     nextMove,
@@ -30,19 +38,24 @@ function App() {
     firstMove,
     lastMove,
     getCurrentFen,
+    getLastMoveUci,
     flipBoard,
     boardOrientation,
-    updateMove,
+    replaceMoves,
   } = useChessGame();
 
   const {
     analyze,
     stop,
+    pause,
+    resume,
     isAnalyzing,
     currentEvaluation,
     bestMove,
     engineLines,
     depth,
+    status: engineStatus,
+    error: engineError,
   } = useStockfish();
 
   const {
@@ -58,20 +71,16 @@ function App() {
     clearError,
   } = useGameImport();
 
+  const { reviewGame, cancelReview, progress, isReviewing } = useFastGameReview();
   const { toasts, showToast, removeToast } = useToast();
   const [showImport, setShowImport] = useState(true);
-  const [accuracy, setAccuracy] = useState({ white: 0, black: 0, whiteAvgCPLoss: 0, blackAvgCPLoss: 0 });
+  const [accuracy, setAccuracy] = useState<AccuracyScore>(EMPTY_ACCURACY);
 
-
-  // Game Review State
-  const [isReviewing, setIsReviewing] = useState(false);
-  const [reviewIndex, setReviewIndex] = useState(-1); // -1 = start pos, 0 = after move 0, etc.
-  const [reviewData, setReviewData] = useState<{ eval: number; bestMove: string | null }[]>([]);
-
-  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!gameData) return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
 
       switch (e.key) {
         case 'ArrowLeft':
@@ -97,146 +106,59 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [gameData, nextMove, previousMove, firstMove, lastMove, flipBoard]);
 
-  // Analyze current position when move changes or game loads
   useEffect(() => {
     if (gameData && !isReviewing) {
-      const fen = getCurrentFen();
-      analyze(fen, { depth: 18 });
+      analyze(getCurrentFen(), { depth: 18, multiPv: 3 });
     }
   }, [currentMoveIndex, gameData, analyze, getCurrentFen, isReviewing]);
 
-  // Game Review Logic
-  const startReview = useCallback(() => {
-    if (!gameData) return;
-    setIsReviewing(true);
-    setReviewIndex(-1); // Start with initial position
-    setReviewData([]);
-    goToMove(-1); // Go to start
-    showToast('Starting game review...', 'info', 2000);
-  }, [gameData, goToMove, showToast]);
-
-
-  // Trigger analysis for review step
   useEffect(() => {
-    if (!isReviewing || !gameData) return;
-    
-    // Ensure board is at the right move
-    if (currentMoveIndex !== reviewIndex) {
-      goToMove(reviewIndex);
-      return; // Wait for move update
+    if (engineStatus === 'error' && engineError) {
+      showToast(engineError, 'error', 8000);
     }
+  }, [engineStatus, engineError, showToast]);
 
-    // If we are not analyzing, start analysis for this position
-    // But we need to make sure we haven't already analyzed it.
-    // We can check reviewData length.
-    // reviewIndex starts at -1. reviewData index 0 corresponds to reviewIndex -1 (start pos).
-    // So if reviewData.length === reviewIndex + 1, we need to analyze.
-    
-    if (!isAnalyzing && reviewData.length === reviewIndex + 1) {
-      const fen = getCurrentFen();
-      analyze(fen, { depth: 15 }); // Lower depth for faster review
-    }
-  }, [isReviewing, reviewIndex, currentMoveIndex, gameData, isAnalyzing, reviewData.length, analyze, getCurrentFen, goToMove]);
-
-  // Handle analysis completion during review
-  useEffect(() => {
-    if (!isReviewing || !gameData) return;
-
-    // If analysis just finished (isAnalyzing became false) AND we have a result
-    // AND we are waiting for this result (reviewData.length === reviewIndex + 1)
-    
-    if (!isAnalyzing && currentEvaluation !== null && reviewData.length === reviewIndex + 1) {
-      // Save result: evaluation of this position and what the engine recommends from here
-      const newReviewData = [...reviewData, { eval: currentEvaluation, bestMove }];
-      setReviewData(newReviewData);
-      
-      // If this was not the start position (reviewIndex > -1), we can classify the move that led here
-      if (reviewIndex > -1) {
-        const moveIndex = reviewIndex; // The move we just made to get here
-        const playedMove = gameData.moves[moveIndex];
-        
-        // prevPosData contains:
-        // - eval: engine's evaluation of position BEFORE the move (from side-to-move's perspective)
-        // - bestMove: what the engine recommended from that position (in UCI format like "e2e4")
-        const prevPosData = reviewData[reviewIndex];
-        
-        // The engine's eval BEFORE the move tells us what you SHOULD have achieved
-        // This is the "best move eval" - what you'd get with optimal play
-        // From the mover's perspective, this is already correct (positive = good for them)
-        const bestMoveEval = prevPosData.eval;
-        
-        // currentEvaluation is from the OPPONENT's perspective after the move
-        // So we negate it to get the mover's perspective
-        const evalAfterMove = -currentEvaluation;
-        
-        // Now check if the played move was the engine's best move
-        // We need to compare the played SAN to the engine's recommended move
-        // The engine gives moves in UCI format (e2e4), we have moves in SAN (e4)
-        // We can't directly compare them, so we rely on eval comparison
-        
-        // If evalAfterMove ≈ bestMoveEval (within small margin), it was effectively the best move
-        const cpDifference = bestMoveEval - evalAfterMove;
-        const wasBestMove = cpDifference <= 10; // Within 10 cp = effectively best
-        
-        // Detect if this was a sacrifice (material given up for positional/tactical gain)
-        const isSacrifice = detectSacrifice(playedMove.san, bestMoveEval, evalAfterMove);
-        
-        // Calculate classification using Chess.com's system
-        const classification = classifyMove(
-          evalAfterMove,     // What we got after the move
-          bestMoveEval,      // What we could have had (eval before = best achievable)
-          bestMoveEval,      // Best possible eval
-          false,             // isBookMove
-          moveIndex + 1,     // Move number
-          wasBestMove,       // Did we play the best move?
-          playedMove.san,    // The move we played
-          prevPosData.bestMove || undefined, // Engine's recommendation
-          isSacrifice        // Was this a sacrifice?
-        );
-        
-        const cpLoss = calculateCentipawnLoss(evalAfterMove, bestMoveEval, bestMoveEval);
-        
-        updateMove(moveIndex, {
-          evaluation: evalAfterMove,
-          classification,
-          centipawnLoss: cpLoss,
-          bestMove: prevPosData.bestMove || undefined
-        });
-      }
-      
-      // Move to next position
-      if (reviewIndex < gameData.moves.length - 1) {
-        setReviewIndex(prev => prev + 1);
-      } else {
-        // Finished
-        setIsReviewing(false);
-        showToast('Game review completed!', 'success', 3000);
-        // Trigger accuracy update
-        // We need to wait for the last state update to propagate?
-        // calculateAccuracy reads from 'moves'. updateMove updates 'moves'.
-        // We can just call it with the updated moves if we had them, but we don't have the full list here easily.
-        // We can rely on the effect below or just set a flag.
-      }
-    }
-  }, [isAnalyzing, isReviewing, currentEvaluation, bestMove, reviewData, reviewIndex, gameData, updateMove, showToast]);
-
-  // Update accuracy when moves change
   useEffect(() => {
     if (gameData?.moves.length) {
-       const acc = calculateAccuracy(gameData.moves);
-       setAccuracy(acc);
+      setAccuracy(calculateAccuracy(gameData.moves));
+    } else {
+      setAccuracy(EMPTY_ACCURACY);
     }
   }, [gameData?.moves]);
 
+  const handleReview = useCallback(async () => {
+    if (!gameData) return;
+    if (isReviewing) {
+      await cancelReview();
+      resume();
+      return;
+    }
+
+    pause();
+    showToast('Starting game review...', 'info', 2000);
+    try {
+      const result = await reviewGame(gameData.pgn, { depth: 12 });
+      if (result) {
+        replaceMoves(result.moves);
+        setAccuracy(result.accuracy);
+        showToast('Game review completed!', 'success', 3000);
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Review failed', 'error');
+    } finally {
+      resume();
+    }
+  }, [gameData, isReviewing, cancelReview, pause, resume, reviewGame, replaceMoves, showToast]);
+
   const handleGameSelected = (pgn: string, startFen?: string) => {
     showToast('Loading game...', 'info', 2000);
-    
-    const success = loadGame(pgn, startFen);
-    if (success) {
+    const result = loadGame(pgn, startFen);
+    if (result.success) {
       setShowImport(false);
+      setAccuracy(EMPTY_ACCURACY);
       showToast('Game loaded successfully!', 'success');
     } else {
-      showToast('Failed to load game. Please check the PGN format.', 'error');
+      showToast(result.error || 'Failed to load game. Please check the PGN format.', 'error');
     }
   };
 
@@ -245,10 +167,12 @@ function App() {
     stop();
   };
 
-  // Get Chess960 position number if applicable
   const chess960Position = gameData?.startFen
     ? identifyChess960Position(gameData.startFen)
     : null;
+
+  const reviewPercent =
+    progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
 
   return (
     <div className="min-h-screen flex flex-col bg-chess-darker">
@@ -285,22 +209,20 @@ function App() {
           </div>
         ) : gameData ? (
           <div className="flex flex-col xl:grid xl:grid-cols-[minmax(300px,1fr)_auto_minmax(300px,1fr)] gap-6">
-            {/* Left sidebar - Game info and accuracy */}
             <div className="space-y-4 xl:max-w-md">
               <div className="bg-chess-dark rounded-lg p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-xl font-bold text-white">Game Info</h2>
                   <div className="flex gap-2">
                     <button
-                      onClick={startReview}
-                      disabled={isReviewing}
+                      onClick={handleReview}
                       className={`px-3 py-1 text-sm rounded transition-colors ${
                         isReviewing
-                          ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                          ? 'bg-red-600 hover:bg-red-500 text-white'
                           : 'bg-green-600 hover:bg-green-500 text-white'
                       }`}
                     >
-                      {isReviewing ? `${Math.round(((reviewIndex + 2) / ((gameData?.moves.length || 0) + 1)) * 100)}%` : 'Review'}
+                      {isReviewing ? `Cancel ${reviewPercent}%` : 'Review'}
                     </button>
                     <button
                       onClick={handleNewGame}
@@ -336,38 +258,30 @@ function App() {
                 moves={gameData.moves}
                 onCategoryClick={(category, color) => {
                   if (!gameData) return;
-                  
-                  // Find next move with this classification and color
-                  // Start searching from current move + 1
+
                   let nextIndex = -1;
                   const startIndex = currentMoveIndex + 1;
-                  
-                  // Search forward
+
                   for (let i = startIndex; i < gameData.moves.length; i++) {
                     const move = gameData.moves[i];
-                    const isWhite = i % 2 === 0;
-                    const moveColor = isWhite ? 'white' : 'black';
-                    
+                    const moveColor = i % 2 === 0 ? 'white' : 'black';
                     if (move.classification === category && moveColor === color) {
                       nextIndex = i;
                       break;
                     }
                   }
-                  
-                  // If not found, wrap around and search from beginning
+
                   if (nextIndex === -1) {
                     for (let i = 0; i < startIndex; i++) {
                       const move = gameData.moves[i];
-                      const isWhite = i % 2 === 0;
-                      const moveColor = isWhite ? 'white' : 'black';
-                      
+                      const moveColor = i % 2 === 0 ? 'white' : 'black';
                       if (move.classification === category && moveColor === color) {
                         nextIndex = i;
                         break;
                       }
                     }
                   }
-                  
+
                   if (nextIndex !== -1) {
                     goToMove(nextIndex);
                   } else {
@@ -379,15 +293,21 @@ function App() {
               <EngineLines lines={engineLines} depth={depth} />
             </div>
 
-            {/* Center - Board */}
             <div className="flex flex-col items-center gap-4">
               <div className="flex items-center gap-4">
-                <EvaluationBar evaluation={currentEvaluation} height={600} />
+                <EvaluationBar
+                  evaluation={currentEvaluation}
+                  status={engineStatus}
+                  isAnalyzing={isAnalyzing}
+                  height={600}
+                />
                 <ChessBoard
                   game={game}
                   fen={game.fen()}
                   orientation={boardOrientation}
                   bestMove={bestMove}
+                  lastMoveUci={getLastMoveUci()}
+                  chess960={chess960}
                   width={600}
                   height={600}
                 />
@@ -405,14 +325,26 @@ function App() {
                 totalMoves={gameData.moves.length}
               />
 
-              {isAnalyzing && (
+              {engineStatus === 'error' && (
+                <div className="text-sm text-red-400 max-w-md text-center">
+                  {engineError || 'Engine failed to start.'}
+                </div>
+              )}
+              {engineStatus === 'booting' && (
+                <div className="text-sm text-gray-400">Starting engine…</div>
+              )}
+              {engineStatus === 'ready' && isAnalyzing && (
                 <div className="text-sm text-gray-400">
-                  Analyzing... (Depth: {depth})
+                  Analyzing… (Depth: {depth})
+                </div>
+              )}
+              {isReviewing && (
+                <div className="text-sm text-gray-400">
+                  Reviewing {progress.current}/{progress.total} positions
                 </div>
               )}
             </div>
 
-            {/* Right sidebar - Move list */}
             <div className="xl:max-w-md">
               <MoveList
                 moves={gameData.moves}

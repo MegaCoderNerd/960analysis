@@ -3,6 +3,8 @@
  * https://lichess.org/api
  */
 
+import { encodePathSegment, fetchWithRetry } from './http';
+
 export interface LichessGame {
   id: string;
   rated: boolean;
@@ -14,28 +16,33 @@ export interface LichessGame {
   status: string;
   players: {
     white: {
-      user: {
+      user?: {
         name: string;
         id: string;
       };
-      rating: number;
+      rating?: number;
     };
     black: {
-      user: {
+      user?: {
         name: string;
         id: string;
       };
-      rating: number;
+      rating?: number;
     };
   };
   pgn?: string;
+}
+
+export function playerName(player: LichessGame['players']['white']): string {
+  return player.user?.name ?? 'Anonymous';
 }
 
 export async function fetchLichessGames(
   username: string,
   since?: number,
   until?: number,
-  max: number = 50
+  max: number = 50,
+  onRetry?: (waitMs: number) => void
 ): Promise<LichessGame[]> {
   const params = new URLSearchParams({
     variant: 'chess960',
@@ -46,78 +53,39 @@ export async function fetchLichessGames(
   if (since) params.append('since', since.toString());
   if (until) params.append('until', until.toString());
 
-  const url = `https://lichess.org/api/games/user/${username}?${params}`;
+  const url = `https://lichess.org/api/games/user/${encodePathSegment(username)}?${params}`;
 
-  try {
-    const response = await fetch(url, {
-      headers: {
-        Accept: 'application/x-ndjson',
-      },
-    });
+  const response = await fetchWithRetry(url, {
+    headers: { Accept: 'application/x-ndjson' },
+    onRetry: (waitMs) => onRetry?.(waitMs),
+  });
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch games: ${response.statusText}`);
-    }
-
-    const text = await response.text();
-    const lines = text.trim().split('\n');
-    const games: LichessGame[] = lines
-      .map((line) => {
-        try {
-          return JSON.parse(line);
-        } catch {
-          return null;
-        }
-      })
-      .filter((game): game is LichessGame => game !== null);
-
-    return games;
-  } catch (error) {
-    console.error('Error fetching Lichess games:', error);
-    throw error;
-  }
+  const text = await response.text();
+  if (!text.trim()) return [];
+  const lines = text.trim().split('\n');
+  return lines
+    .map((line) => {
+      try {
+        return JSON.parse(line) as LichessGame;
+      } catch {
+        return null;
+      }
+    })
+    .filter((game): game is LichessGame => game !== null);
 }
 
 export async function fetchLichessGameByUrl(gameUrl: string): Promise<string | null> {
-  try {
-    // Extract game ID from URL
-    // Example: https://lichess.org/abc123def
-    const parts = gameUrl.split('/');
-    const gameId = parts[parts.length - 1].split('?')[0];
-
-    const url = `https://lichess.org/game/export/${gameId}`;
-
-    const response = await fetch(url, {
-      headers: {
-        Accept: 'application/x-chess-pgn',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch game: ${response.statusText}`);
-    }
-
-    return await response.text();
-  } catch (error) {
-    console.error('Error fetching Lichess game:', error);
-    return null;
-  }
+  const gameId = parseLichessGameUrl(gameUrl);
+  if (!gameId) return null;
+  return fetchLichessGameById(gameId);
 }
 
 export async function fetchLichessGameById(gameId: string): Promise<string | null> {
+  const url = `https://lichess.org/game/export/${encodePathSegment(gameId)}`;
   try {
-    const url = `https://lichess.org/game/export/${gameId}`;
-
-    const response = await fetch(url, {
-      headers: {
-        Accept: 'application/x-chess-pgn',
-      },
+    const response = await fetchWithRetry(url, {
+      headers: { Accept: 'application/x-chess-pgn' },
     });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch game: ${response.statusText}`);
-    }
-
     return await response.text();
   } catch (error) {
     console.error('Error fetching Lichess game:', error);
@@ -126,7 +94,6 @@ export async function fetchLichessGameById(gameId: string): Promise<string | nul
 }
 
 export function parseLichessGameUrl(url: string): string | null {
-  // Extract game ID from Lichess URL
-  const match = url.match(/lichess\.org\/([a-zA-Z0-9]{8,12})/);
+  const match = url.match(/lichess\.org\/(?:embed\/)?([a-zA-Z0-9]{8,12})(?:\/|$|\?)/);
   return match ? match[1] : null;
 }

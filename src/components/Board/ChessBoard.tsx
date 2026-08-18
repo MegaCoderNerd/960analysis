@@ -3,6 +3,7 @@ import { Chessground } from 'chessground';
 import type { Api } from 'chessground/api';
 import type { Key } from 'chessground/types';
 import { Chess } from 'chess.js';
+import { getChess960CastlingDests } from '../../utils/chess960';
 import 'chessground/assets/chessground.base.css';
 import 'chessground/assets/chessground.brown.css';
 import 'chessground/assets/chessground.cburnett.css';
@@ -14,6 +15,8 @@ interface ChessBoardProps {
   onMove?: (from: string, to: string) => void;
   highlightLastMove?: boolean;
   bestMove?: string | null;
+  lastMoveUci?: string | null;
+  chess960?: boolean;
   width?: number;
   height?: number;
 }
@@ -25,6 +28,8 @@ export function ChessBoard({
   onMove,
   highlightLastMove = true,
   bestMove,
+  lastMoveUci,
+  chess960 = false,
   width = 600,
   height = 600,
 }: ChessBoardProps) {
@@ -34,18 +39,17 @@ export function ChessBoard({
   useEffect(() => {
     if (!boardRef.current) return;
 
-    const config = {
+    chessgroundRef.current = Chessground(boardRef.current, {
       fen: game.fen(),
       orientation,
       movable: {
         free: false,
-        color: 'both' as const,
-        dests: getValidMoves(game),
+        color: 'both',
+        dests: getValidMoves(game, fen, chess960),
+        rookCastle: !chess960,
         events: {
           after: (orig: string, dest: string) => {
-            if (onMove) {
-              onMove(orig, dest);
-            }
+            onMove?.(orig, dest);
           },
         },
       },
@@ -64,61 +68,50 @@ export function ChessBoard({
       premovable: {
         enabled: false,
       },
-    };
-
-    chessgroundRef.current = Chessground(boardRef.current, config);
+    });
 
     return () => {
       chessgroundRef.current?.destroy();
     };
+    // Chessground is created once; later effects update fen/orientation/dests.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Update board when game state changes
   useEffect(() => {
     if (!chessgroundRef.current) return;
 
+    const lastMove = parseUciMove(lastMoveUci);
+
     chessgroundRef.current.set({
-      fen: fen,
+      fen,
       movable: {
-        dests: getValidMoves(game),
+        dests: getValidMoves(game, fen, chess960),
+        rookCastle: !chess960,
       },
       turnColor: game.turn() === 'w' ? 'white' : 'black',
       check: game.inCheck(),
+      lastMove: highlightLastMove && lastMove ? lastMove : undefined,
     });
+  }, [game, fen, highlightLastMove, lastMoveUci, chess960]);
 
-    // Highlight last move
-    const history = game.history({ verbose: true });
-    if (history.length > 0 && highlightLastMove) {
-      const lastMove = history[history.length - 1];
-      chessgroundRef.current.set({
-        lastMove: [lastMove.from, lastMove.to],
-      });
-    }
-  }, [game, fen, highlightLastMove]);
-
-  // Update orientation
   useEffect(() => {
     if (!chessgroundRef.current) return;
     chessgroundRef.current.set({ orientation });
   }, [orientation]);
 
-  // Draw best move arrow
   useEffect(() => {
-    if (!chessgroundRef.current || !bestMove) return;
-
-    // Parse best move (e.g., "e2e4" -> from: e2, to: e4)
-    if (bestMove.length >= 4) {
-      const from = bestMove.slice(0, 2);
-      const to = bestMove.slice(2, 4);
-
-      chessgroundRef.current.setShapes([
-        {
-          orig: from as any,
-          dest: to as any,
-          brush: 'green',
-        },
-      ]);
+    if (!chessgroundRef.current) return;
+    if (!bestMove || bestMove.length < 4) {
+      chessgroundRef.current.setShapes([]);
+      return;
     }
+    chessgroundRef.current.setShapes([
+      {
+        orig: bestMove.slice(0, 2) as Key,
+        dest: bestMove.slice(2, 4) as Key,
+        brush: 'green',
+      },
+    ]);
   }, [bestMove]);
 
   return (
@@ -130,19 +123,28 @@ export function ChessBoard({
   );
 }
 
-// Helper function to get valid moves for chessground
-function getValidMoves(game: Chess): Map<Key, Key[]> {
+function parseUciMove(uci?: string | null): [Key, Key] | undefined {
+  if (!uci || uci.length < 4) return undefined;
+  return [uci.slice(0, 2) as Key, uci.slice(2, 4) as Key];
+}
+
+function getValidMoves(game: Chess, fen: string, chess960: boolean): Map<Key, Key[]> {
   const dests = new Map<Key, Key[]>();
   const moves = game.moves({ verbose: true });
 
   for (const move of moves) {
     const from = move.from as Key;
     const to = move.to as Key;
-    
-    if (!dests.has(from)) {
-      dests.set(from, []);
-    }
+    if (!dests.has(from)) dests.set(from, []);
     dests.get(from)!.push(to);
+  }
+
+  if (chess960) {
+    const castleDests = getChess960CastlingDests(fen);
+    for (const [from, tos] of castleDests) {
+      const existing = dests.get(from as Key) ?? [];
+      dests.set(from as Key, [...new Set([...existing, ...(tos as Key[])])]);
+    }
   }
 
   return dests;

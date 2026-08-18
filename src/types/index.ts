@@ -12,48 +12,58 @@ export type MoveClassification =
 
 export interface AnalyzedMove {
   san: string;
+  uci: string;
   fen: string;
-  evaluation: number | null;
-  bestMove?: string;
+  evaluation?: number;
   classification?: MoveClassification;
   centipawnLoss?: number;
-  isCheck?: boolean;
-  isCheckmate?: boolean;
+  bestMove?: string;
 }
 
 export interface EngineLine {
-  moves: string[];
-  evaluation: number;
-  depth: number;
   multipv: number;
+  depth: number;
+  evaluation: number;
+  mate?: number;
+  moves: string[];
 }
 
 export interface GameInfo {
   white: string;
   black: string;
   result: string;
-  date: string;
+  date?: string;
   event?: string;
   site?: string;
-  startPos?: number; // Chess 960 starting position (1-960)
 }
 
 export interface ChessGame {
   pgn: string;
+  startFen?: string;
   info: GameInfo;
   moves: AnalyzedMove[];
-  startFen?: string;
 }
 
 export interface AccuracyScore {
-  white: number;
-  black: number;
-  whiteAvgCPLoss: number;
-  blackAvgCPLoss: number;
+  white: number | null;
+  black: number | null;
+  whiteAvgCPLoss: number | null;
+  blackAvgCPLoss: number | null;
 }
 
+export type EngineStatus = 'booting' | 'ready' | 'error';
+
 export interface StockfishOptions {
+  depth?: number;
+  multiPv?: number;
+  threads?: number;
+}
+
+export interface AnalysisResult {
+  evaluation: number;
+  mate?: number;
+  bestMove: string;
+  ponderMove?: string;
+  lines: EngineLine[];
   depth: number;
-  multiPv: number;
-  threads: number;
 }

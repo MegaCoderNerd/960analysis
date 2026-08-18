@@ -3,6 +3,8 @@
  * https://www.chess.com/news/view/published-data-api
  */
 
+import { encodePathSegment, fetchWithRetry } from './http';
+
 export interface ChessComGame {
   url: string;
   pgn: string;
@@ -28,30 +30,16 @@ export interface ChessComArchive {
 export async function fetchChessComGames(
   username: string,
   year: number,
-  month: number
+  month: number,
+  onRetry?: (waitMs: number) => void
 ): Promise<ChessComGame[]> {
-  const url = `https://api.chess.com/pub/player/${username}/games/${year}/${String(month).padStart(2, '0')}`;
+  const url = `https://api.chess.com/pub/player/${encodePathSegment(username)}/games/${year}/${String(month).padStart(2, '0')}`;
 
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch games: ${response.statusText}`);
-    }
-
-    const data: ChessComArchive = await response.json();
-    
-    // Filter for Chess960 games
-    return data.games.filter((game) => game.rules === 'chess960');
-  } catch (error) {
-    console.error('Error fetching Chess.com games:', error);
-    throw error;
-  }
-}
-
-export async function fetchChessComGamesByUrl(): Promise<ChessComGame | null> {
-  // Note: Chess.com doesn't have a direct API endpoint for a single game
-  // This function is not implemented - use the archive method instead
-  return null;
+  const response = await fetchWithRetry(url, {
+    onRetry: (waitMs) => onRetry?.(waitMs),
+  });
+  const data: ChessComArchive = await response.json();
+  return data.games.filter((game) => game.rules === 'chess960');
 }
 
 export function parseChessComPGN(pgn: string): {

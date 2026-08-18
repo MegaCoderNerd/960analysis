@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { LichessGame } from '../../services/lichess';
+import { playerName } from '../../services/lichess';
 import type { ToastType } from '../UI/Toast';
 
 interface LichessImportProps {
@@ -150,7 +151,7 @@ export function LichessImport({
               >
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-white">
-                    {game.players.white.user.name} vs {game.players.black.user.name}
+                    {playerName(game.players.white)} vs {playerName(game.players.black)}
                   </span>
                   <span className="text-xs text-gray-500">
                     {new Date(game.createdAt).toLocaleDateString()}

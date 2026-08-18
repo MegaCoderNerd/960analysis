@@ -1,33 +1,27 @@
 import type { MoveClassification } from '../types';
 
 /**
- * Chess.com Move Classification System
- * 
- * Based on extensive community research, Chess.com uses these approximate thresholds:
- * 
- * - Best: 0-5 cp loss (played the engine's top choice or equivalent)
- * - Excellent: 5-25 cp loss
- * - Good: 25-75 cp loss  
- * - Inaccuracy: 75-150 cp loss
- * - Mistake: 150-300 cp loss
- * - Blunder: 300+ cp loss OR turning clearly winning into losing/equal
- * - Missed Win: Had forced mate but didn't play it
- * - Brilliant: Best move that's a sacrifice and only good option (very rare)
- * - Great: Best move in critical position that's hard to find (rare)
- * - Book: Opening theory move
- * 
- * KEY INSIGHT: Chess.com's system is almost entirely based on CENTIPAWN LOSS.
- * Brilliant/Great are special cases that require sacrifice detection or position complexity.
+ * Chess.com-style move classification.
+ *
+ * Thresholds (centipawns vs best):
+ * - Best: 0-25
+ * - Excellent: 26-70
+ * - Good: 71-100
+ * - Inaccuracy: 101-150
+ * - Mistake: 151-300
+ * - Blunder: 300+ or winning (+300) flipped to losing (-100)
+ * - Missed Win: had forced mate and lost it
+ * - Brilliant / Great: special cases (sacrifice / only defensive resource)
  */
 
 // Thresholds (centipawns) - Calibrated to match Chess.com's analysis
 // Based on the annotations in PGN: $6=inaccuracy, $2=mistake, $4=blunder, $1=great, $3=brilliant
-const THRESHOLD_BEST = 5;        // 0-5 cp = best
-const THRESHOLD_EXCELLENT = 15;  // 5-15 cp = excellent  
-const THRESHOLD_GOOD = 30;       // 15-30 cp = good
-const THRESHOLD_INACCURACY = 90; // 30-90 cp = inaccuracy ($6)
-const THRESHOLD_MISTAKE = 200;   // 90-200 cp = mistake ($2)
-// Above THRESHOLD_MISTAKE = blunder ($4) (200+ cp loss)
+const THRESHOLD_BEST = 25;        // 0-25 cp = best
+const THRESHOLD_EXCELLENT = 70;  // 25-70 cp = excellent  
+const THRESHOLD_GOOD = 100;       // 70-100 cp = good
+const THRESHOLD_INACCURACY = 150; // 100-150 cp = inaccuracy ($6)
+const THRESHOLD_MISTAKE = 300;   // 150-300 cp = mistake ($2)
+// Above THRESHOLD_MISTAKE = blunder ($4) (300+ cp loss)
 
 export function classifyMove(
   evalAfterMove: number | null,
@@ -40,6 +34,9 @@ export function classifyMove(
   engineBestMoveSan?: string,
   isSacrifice: boolean = false
 ): MoveClassification | undefined {
+  void moveNumber;
+  void playedMoveSan;
+  void engineBestMoveSan;
   // Book moves in opening
   if (isBookMove) {
     return 'book';
@@ -87,13 +84,13 @@ export function classifyMove(
   }
 
   // === MISTAKE DETECTION ===
-  // 90-200 cp loss
+  // 150-200 cp loss
   if (cpLoss >= THRESHOLD_INACCURACY) {
     return 'mistake';
   }
 
   // === INACCURACY DETECTION ===
-  // 30-90 cp loss
+  // 100-150 cp loss
   if (cpLoss >= THRESHOLD_GOOD) {
     return 'inaccuracy';
   }
@@ -124,7 +121,7 @@ export function classifyMove(
   }
 
   // === BEST MOVE ===
-  // Played the engine's top choice (within 5 cp)
+  // Played the engine's top choice (within 15 cp)
   if (playedBestMove) {
     return 'best';
   }
