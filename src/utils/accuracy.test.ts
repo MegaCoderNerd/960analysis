@@ -30,24 +30,39 @@ describe('calculateAccuracy', () => {
     expect(score.black).toBe(100);
   });
 
-  it('stays high when most moves are best/excellent with a few errors', () => {
+  it('stays high when most moves are best or excellent and errors are rare', () => {
     const white = [
-      ...Array.from({ length: 19 }, () => move({ centipawnLoss: 8, evaluation: 20 })),
-      ...Array.from({ length: 8 }, () => move({ centipawnLoss: 40, evaluation: 10 })),
-      ...Array.from({ length: 4 }, () => move({ centipawnLoss: 85, evaluation: 0 })),
-      ...Array.from({ length: 4 }, () => move({ centipawnLoss: 125, evaluation: -20 })),
-      ...Array.from({ length: 2 }, () => move({ centipawnLoss: 220, evaluation: -80 })),
-      move({ centipawnLoss: 400, evaluation: -100 }),
+      ...Array.from({ length: 19 }, () => move({ centipawnLoss: 8, evaluation: 20, classification: 'best' })),
+      ...Array.from({ length: 8 }, () => move({ centipawnLoss: 40, evaluation: 10, classification: 'excellent' })),
+      ...Array.from({ length: 4 }, () => move({ centipawnLoss: 85, evaluation: 0, classification: 'good' })),
+      move({ centipawnLoss: 125, evaluation: -20, classification: 'inaccuracy' }),
     ];
     const interleaved: AnalyzedMove[] = [];
     for (const whiteMove of white) {
-      interleaved.push(whiteMove, move({ san: 'e5', centipawnLoss: 10, evaluation: 0 }));
+      interleaved.push(whiteMove, move({ san: 'e5', centipawnLoss: 10, evaluation: 0, classification: 'best' }));
     }
 
     const score = calculateAccuracy(interleaved);
-    expect(score.white).toBeGreaterThan(75);
-    expect(score.white).toBeLessThan(95);
-    expect(score.black).toBeGreaterThan(90);
+    expect(score.white).toBeGreaterThan(80);
+    expect(score.black).toBe(100);
+  });
+
+  it('falls when blunders, mistakes, and inaccuracies pile up', () => {
+    const white = [
+      ...Array.from({ length: 4 }, () => move({ centipawnLoss: 0, evaluation: 10, classification: 'best' })),
+      ...Array.from({ length: 3 }, () => move({ centipawnLoss: 120, evaluation: -20, classification: 'inaccuracy' })),
+      ...Array.from({ length: 3 }, () => move({ centipawnLoss: 220, evaluation: -80, classification: 'mistake' })),
+      ...Array.from({ length: 3 }, () => move({ centipawnLoss: 400, evaluation: -200, classification: 'blunder' })),
+    ];
+    const interleaved: AnalyzedMove[] = [];
+    for (const whiteMove of white) {
+      interleaved.push(whiteMove, move({ san: 'e5', centipawnLoss: 5, evaluation: 0, classification: 'best' }));
+    }
+
+    const score = calculateAccuracy(interleaved);
+    expect(score.white).toBeLessThan(55);
+    expect(score.white).toBeGreaterThan(20);
+    expect(score.black).toBe(100);
   });
 
   it('scores book moves as perfect, the way Chess.com does', () => {

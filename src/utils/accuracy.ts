@@ -1,12 +1,28 @@
-import type { AnalyzedMove, AccuracyScore } from '../types';
+import type { AnalyzedMove, AccuracyScore, MoveClassification } from '../types';
 
 /**
- * Game accuracy from per-move win-probability loss (Lichess / Chess.com).
+ * Game accuracy follows the move labels, the way Chess.com averages a grade
+ * per move. A plain average of win-chance loss stays high when the position
+ * was already decided, so a string of blunders barely moves the number.
+ * The game score is the mean of that average and a harmonic mean, which
+ * lets the bad moves count.
  *
- * The exponential 103.1668 * exp(-0.04354 * x) - 3.1669 is fitted to win-%
- * points, not raw ACPL. Feeding average centipawn loss into it turns a
- * typical 30cp game into ~27% accuracy.
+ * The win-chance curve is only the fallback for a move that has a centipawn
+ * loss and no label yet.
  */
+
+const classificationAccuracy: Record<MoveClassification, number> = {
+  brilliant: 100,
+  great: 100,
+  best: 100,
+  book: 100,
+  excellent: 90,
+  good: 75,
+  inaccuracy: 40,
+  mistake: 20,
+  blunder: 10,
+  'missed-win': 10,
+};
 
 function evalToWinProb(cp: number): number {
   if (Math.abs(cp) > 9000) {
@@ -62,22 +78,33 @@ function calculatePlayerAccuracy(moves: AnalyzedMove[]): {
     return { accuracy: null, avgCPLoss: null };
   }
 
-  let totalMoveAccuracy = 0;
+  const scores: number[] = [];
   let totalCPLoss = 0;
 
   for (const move of classified) {
     const cpLoss = move.centipawnLoss ?? 0;
-    const evalBefore = (move.evaluation ?? 0) + cpLoss;
     totalCPLoss += cpLoss;
-    // Chess.com scores book moves as best, so they do not reduce accuracy.
-    const scoredLoss = move.classification === 'book' ? 0 : cpLoss;
-    totalMoveAccuracy += calculateMoveAccuracy(scoredLoss, evalBefore);
+    scores.push(scoreMove(move, cpLoss));
   }
 
   return {
-    accuracy: Math.round((totalMoveAccuracy / classified.length) * 10) / 10,
+    accuracy: Math.round(gameAccuracy(scores) * 10) / 10,
     avgCPLoss: Math.round((totalCPLoss / classified.length) * 10) / 10,
   };
+}
+
+function scoreMove(move: AnalyzedMove, cpLoss: number): number {
+  if (move.classification) return classificationAccuracy[move.classification];
+  const evalBefore = (move.evaluation ?? 0) + cpLoss;
+  return calculateMoveAccuracy(cpLoss, evalBefore);
+}
+
+/** Arithmetic mean, pulled down by the harmonic mean of the same grades. */
+function gameAccuracy(scores: number[]): number {
+  const count = scores.length;
+  const arithmetic = scores.reduce((sum, score) => sum + score, 0) / count;
+  const harmonic = count / scores.reduce((sum, score) => sum + 1 / Math.max(score, 1), 0);
+  return (arithmetic + harmonic) / 2;
 }
 
 export function formatAccuracy(accuracy: number | null): string {

@@ -38,7 +38,6 @@ function App() {
     firstMove,
     lastMove,
     getCurrentFen,
-    getLastMoveUci,
     flipBoard,
     boardOrientation,
     replaceMoves,
@@ -208,8 +207,8 @@ function App() {
             )}
           </div>
         ) : gameData ? (
-          <div className="flex flex-col xl:grid xl:grid-cols-[minmax(300px,1fr)_auto_minmax(300px,1fr)] gap-6">
-            <div className="space-y-4 xl:max-w-md">
+          <div className="flex flex-col xl:grid xl:grid-cols-[minmax(0,1fr)_656px_minmax(0,1fr)] gap-6 items-start">
+            <div className="space-y-4 xl:max-w-md min-w-0 w-full">
               <div className="bg-chess-dark rounded-lg p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-xl font-bold text-white">Game Info</h2>
@@ -295,7 +294,7 @@ function App() {
               <EngineLines lines={engineLines} depth={depth} />
             </div>
 
-            <div className="flex flex-col items-center gap-4">
+            <div className="flex flex-col items-center gap-4 shrink-0 max-w-full">
               <div className="flex items-center gap-4">
                 <EvaluationBar
                   evaluation={currentEvaluation}
@@ -308,7 +307,9 @@ function App() {
                   fen={game.fen()}
                   orientation={boardOrientation}
                   bestMove={bestMove}
-                  lastMoveUci={getLastMoveUci()}
+                  playedMove={
+                    currentMoveIndex >= 0 ? gameData.moves[currentMoveIndex] : null
+                  }
                   chess960={chess960}
                   width={600}
                   height={600}
@@ -327,27 +328,27 @@ function App() {
                 totalMoves={gameData.moves.length}
               />
 
-              {engineStatus === 'error' && (
-                <div className="text-sm text-red-400 max-w-md text-center">
-                  {engineError || 'Engine failed to start.'}
-                </div>
-              )}
-              {engineStatus === 'booting' && (
-                <div className="text-sm text-gray-400">Starting engine…</div>
-              )}
-              {engineStatus === 'ready' && isAnalyzing && (
-                <div className="text-sm text-gray-400">
-                  Analyzing… (Depth: {depth})
-                </div>
-              )}
-              {isReviewing && (
-                <div className="text-sm text-gray-400">
-                  Reviewing {progress.current}/{progress.total} positions
-                </div>
-              )}
+              <div className="h-5 text-sm text-center overflow-hidden">
+                {engineStatus === 'error' && (
+                  <span className="text-red-400">
+                    {engineError || 'Engine failed to start.'}
+                  </span>
+                )}
+                {engineStatus === 'booting' && (
+                  <span className="text-gray-400">Starting engine…</span>
+                )}
+                {engineStatus === 'ready' && isAnalyzing && !isReviewing && (
+                  <span className="text-gray-400">Analyzing… (Depth: {depth})</span>
+                )}
+                {isReviewing && (
+                  <span className="text-gray-400">
+                    Reviewing {progress.current}/{progress.total} positions
+                  </span>
+                )}
+              </div>
             </div>
 
-            <div className="xl:max-w-md">
+            <div className="xl:max-w-md min-w-0 w-full">
               <MoveList
                 moves={gameData.moves}
                 currentMoveIndex={currentMoveIndex}

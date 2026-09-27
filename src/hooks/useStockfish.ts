@@ -93,10 +93,7 @@ export function useStockfish(): UseStockfishReturn {
     if (pausedRef.current) return;
 
     setIsAnalyzing(true);
-    setEngineLines([]);
-    setCurrentEvaluation(null);
     setBestMove(null);
-    setDepth(0);
 
     const session = sessionRef.current;
     if (!session || session.getStatus() === 'error') {
