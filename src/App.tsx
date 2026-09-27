@@ -18,6 +18,8 @@ import { calculateAccuracy } from './utils/accuracy';
 import { identifyChess960Position } from './utils/chess960';
 import type { AccuracyScore } from './types';
 
+const REVIEW_DEPTHS = [12, 16, 18, 20, 24];
+
 const EMPTY_ACCURACY: AccuracyScore = {
   white: null,
   black: null,
@@ -74,6 +76,7 @@ function App() {
   const { toasts, showToast, removeToast } = useToast();
   const [showImport, setShowImport] = useState(true);
   const [accuracy, setAccuracy] = useState<AccuracyScore>(EMPTY_ACCURACY);
+  const [reviewDepth, setReviewDepth] = useState(12);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -134,9 +137,9 @@ function App() {
     }
 
     pause();
-    showToast('Starting game review...', 'info', 2000);
+    showToast(`Starting game review at depth ${reviewDepth}...`, 'info', 2000);
     try {
-      const result = await reviewGame(gameData.pgn, { depth: 12 });
+      const result = await reviewGame(gameData.pgn, { depth: reviewDepth });
       if (result) {
         replaceMoves(result.moves);
         setAccuracy(result.accuracy);
@@ -147,7 +150,7 @@ function App() {
     } finally {
       resume();
     }
-  }, [gameData, isReviewing, cancelReview, pause, resume, reviewGame, replaceMoves, showToast]);
+  }, [gameData, isReviewing, reviewDepth, cancelReview, pause, resume, reviewGame, replaceMoves, showToast]);
 
   const handleGameSelected = (pgn: string, startFen?: string) => {
     showToast('Loading game...', 'info', 2000);
@@ -246,6 +249,25 @@ function App() {
                       <span className="text-chess-green font-semibold">#{chess960Position}</span>
                     </div>
                   )}
+                  <div className="flex items-center justify-between gap-3">
+                    <label htmlFor="review-depth" className="text-gray-400">
+                      Review depth
+                    </label>
+                    <select
+                      id="review-depth"
+                      value={reviewDepth}
+                      disabled={isReviewing}
+                      onChange={(event) => setReviewDepth(Number(event.target.value))}
+                      title="Higher depth is more accurate and takes longer"
+                      className="bg-chess-darker border border-white/10 rounded px-2 py-1 text-white disabled:opacity-50"
+                    >
+                      {REVIEW_DEPTHS.map((depthOption) => (
+                        <option key={depthOption} value={depthOption}>
+                          {depthOption}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 

@@ -92,10 +92,10 @@ export interface CachedGameReview {
   accuracy: AccuracyScore;
 }
 
-export async function getCachedGame(pgn: string): Promise<CachedGameReview | null> {
+export async function getCachedGame(pgn: string, depth: number): Promise<CachedGameReview | null> {
   try {
     const db = await openDb();
-    const key = await hashKey(`${ENGINE_ID}|game|${pgn.trim()}`);
+    const key = await hashKey(`${ENGINE_ID}|game|${depth}|${pgn.trim()}`);
     return await new Promise((resolve, reject) => {
       const tx = db.transaction(GAME_STORE, 'readonly');
       const request = tx.objectStore(GAME_STORE).get(key);
@@ -107,10 +107,14 @@ export async function getCachedGame(pgn: string): Promise<CachedGameReview | nul
   }
 }
 
-export async function setCachedGame(pgn: string, review: CachedGameReview): Promise<void> {
+export async function setCachedGame(
+  pgn: string,
+  depth: number,
+  review: CachedGameReview
+): Promise<void> {
   try {
     const db = await openDb();
-    const key = await hashKey(`${ENGINE_ID}|game|${pgn.trim()}`);
+    const key = await hashKey(`${ENGINE_ID}|game|${depth}|${pgn.trim()}`);
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(GAME_STORE, 'readwrite');
       const request = tx.objectStore(GAME_STORE).put(review, key);

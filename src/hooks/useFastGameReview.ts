@@ -42,7 +42,7 @@ export function useFastGameReview() {
       setIsReviewing(true);
 
       try {
-        const cached = await getCachedGame(pgn);
+        const cached = await getCachedGame(pgn, depth);
         if (
           cached &&
           cached.engineId === ENGINE_ID &&
@@ -144,7 +144,7 @@ export function useFastGameReview() {
 
         const accuracy = calculateAccuracy(analyzedMoves);
         const result = { moves: analyzedMoves, accuracy };
-        await setCachedGame(pgn, {
+        await setCachedGame(pgn, depth, {
           schemaVersion: GAME_CACHE_SCHEMA,
           engineId: ENGINE_ID,
           moves: analyzedMoves,
