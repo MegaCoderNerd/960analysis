@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateAccuracy } from './accuracy';
+import { calculateAccuracy, estimateGameRating } from './accuracy';
 import type { AnalyzedMove } from '../types';
 
 function move(partial: Partial<AnalyzedMove>): AnalyzedMove {
@@ -48,5 +48,27 @@ describe('calculateAccuracy', () => {
     expect(score.white).toBeGreaterThan(75);
     expect(score.white).toBeLessThan(95);
     expect(score.black).toBeGreaterThan(90);
+  });
+
+  it('scores book moves as perfect, the way Chess.com does', () => {
+    const score = calculateAccuracy([
+      move({ centipawnLoss: 80, evaluation: -40, classification: 'book' }),
+      move({ centipawnLoss: 0, evaluation: 40, classification: 'best' }),
+    ]);
+    expect(score.white).toBe(100);
+    expect(score.black).toBe(100);
+  });
+});
+
+describe('estimateGameRating', () => {
+  it('maps an 80 accuracy to about a 1600 rapid rating', () => {
+    expect(estimateGameRating(80)).toBe(1600);
+  });
+
+  it('pulls a perfect beginner game down toward the stated rating', () => {
+    const unanchored = estimateGameRating(100);
+    const anchored = estimateGameRating(100, 600);
+    expect(unanchored).toBeGreaterThan(anchored);
+    expect(anchored).toBeLessThan(2000);
   });
 });

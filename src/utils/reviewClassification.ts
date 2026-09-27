@@ -4,6 +4,7 @@ import {
   classifyMove,
   detectSacrifice,
 } from './moveClassification';
+import { isTheoreticalBookMove } from './openingBook';
 
 /**
  * One reviewed ply. Engine scores are side-to-move UCI centipawns:
@@ -40,16 +41,13 @@ export function classifyEngineMove(input: EngineMoveInput): ClassifiedEngineMove
     evalAfter,
     evalBefore,
     bestMoveEval,
-    false,
+    isTheoreticalBookMove(input.fenBefore, input.san, input.ply),
     input.ply,
     wasBestMove,
     input.san,
     input.bestUci,
     isSacrifice
   );
-
-  // Opening-book labeling is scored by the AAR suite and not implemented yet.
-  void input.fenBefore;
 
   return {
     evaluation: evalAfter,

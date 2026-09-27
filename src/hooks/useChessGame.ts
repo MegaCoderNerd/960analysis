@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { Chess } from 'chess.js';
 import type { ChessGame, AnalyzedMove, GameInfo } from '../types';
-import { parsePgnToPositions } from '../utils/pgn';
+import { extractPlayerElo, parsePgnToPositions } from '../utils/pgn';
 import { toChessJsFen } from '../utils/chess960';
 
 interface UseChessGameReturn {
@@ -75,6 +75,8 @@ export function useChessGame(): UseChessGameReturn {
 
         fenPositionsRef.current = parsed.positions.map((pos) => pos.fen);
 
+        const whiteElo = extractPlayerElo(pgn, 'white');
+        const blackElo = extractPlayerElo(pgn, 'black');
         const whiteMatch = pgn.match(/\[White\s+"([^"]+)"\]/);
         const blackMatch = pgn.match(/\[Black\s+"([^"]+)"\]/);
         const resultMatch = pgn.match(/\[Result\s+"([^"]+)"\]/);
@@ -89,6 +91,8 @@ export function useChessGame(): UseChessGameReturn {
           date: dateMatch ? dateMatch[1] : new Date().toISOString().split('T')[0],
           event: eventMatch ? eventMatch[1] : undefined,
           site: siteMatch ? siteMatch[1] : undefined,
+          whiteElo,
+          blackElo,
         };
 
         setGameData({

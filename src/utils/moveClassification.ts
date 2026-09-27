@@ -16,12 +16,11 @@ import type { MoveClassification } from '../types';
 
 // Thresholds (centipawns) - Calibrated to match Chess.com's analysis
 // Based on the annotations in PGN: $6=inaccuracy, $2=mistake, $4=blunder, $1=great, $3=brilliant
-const THRESHOLD_BEST = 25;        // 0-25 cp = best
-const THRESHOLD_EXCELLENT = 70;  // 25-70 cp = excellent  
-const THRESHOLD_GOOD = 100;       // 70-100 cp = good
-const THRESHOLD_INACCURACY = 150; // 100-150 cp = inaccuracy ($6)
-const THRESHOLD_MISTAKE = 300;   // 150-300 cp = mistake ($2)
-// Above THRESHOLD_MISTAKE = blunder ($4) (300+ cp loss)
+const THRESHOLD_BEST = 25; // 0-25 cp = best
+const THRESHOLD_EXCELLENT = 70; // 26-70 cp = excellent
+const THRESHOLD_GOOD = 100; // 71-100 cp = good
+const THRESHOLD_INACCURACY = 150; // 101-150 cp = inaccuracy
+const THRESHOLD_MISTAKE = 300; // 151-299 cp = mistake; 300+ = blunder
 
 export function classifyMove(
   evalAfterMove: number | null,
@@ -78,25 +77,23 @@ export function classifyMove(
     return 'blunder';
   }
   
-  // Pure CP loss blunder
+  // Pure CP loss blunder (300+)
   if (cpLoss >= THRESHOLD_MISTAKE) {
     return 'blunder';
   }
 
-  // === MISTAKE DETECTION ===
-  // 150-200 cp loss
-  if (cpLoss >= THRESHOLD_INACCURACY) {
+  // 151-299 cp
+  if (cpLoss > THRESHOLD_INACCURACY) {
     return 'mistake';
   }
 
-  // === INACCURACY DETECTION ===
-  // 100-150 cp loss
-  if (cpLoss >= THRESHOLD_GOOD) {
+  // 101-150 cp. 100 is still "good".
+  if (cpLoss > THRESHOLD_GOOD) {
     return 'inaccuracy';
   }
 
   // === POSITIVE MOVE CLASSIFICATIONS ===
-  // From here, cpLoss < 30, so it's a good move
+  // From here, cpLoss is 0-100.
   
   // Check if player actually played the best move (within 5 cp)
   const playedBestMove = wasBestMove || cpLoss <= THRESHOLD_BEST;
@@ -127,13 +124,13 @@ export function classifyMove(
   }
 
   // === EXCELLENT ===
-  // Very close to best (5-15 cp loss)
+  // 26-70 cp
   if (cpLoss <= THRESHOLD_EXCELLENT) {
     return 'excellent';
   }
 
   // === GOOD ===
-  // Reasonable move (15-30 cp loss)
+  // 71-100 cp
   return 'good';
 }
 

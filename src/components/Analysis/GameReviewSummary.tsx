@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { AnalyzedMove, MoveClassification } from '../../types';
 import { getMoveClassificationColor, getMoveClassificationIcon, getMoveClassificationLabel } from '../../utils/moveClassification';
-import { formatAccuracy } from '../../utils/accuracy';
+import { estimateGameRating, formatAccuracy, formatGameRating } from '../../utils/accuracy';
 
 interface GameReviewSummaryProps {
   moves: AnalyzedMove[];
@@ -9,6 +9,8 @@ interface GameReviewSummaryProps {
   blackAccuracy: number | null;
   whiteName: string;
   blackName: string;
+  whiteElo?: number;
+  blackElo?: number;
   onCategoryClick?: (category: MoveClassification, color: 'white' | 'black') => void;
 }
 
@@ -18,6 +20,8 @@ export function GameReviewSummary({
   blackAccuracy,
   whiteName,
   blackName,
+  whiteElo,
+  blackElo,
   onCategoryClick,
 }: GameReviewSummaryProps) {
   const stats = useMemo(() => {
@@ -61,6 +65,9 @@ export function GameReviewSummary({
     return { whiteStats, blackStats };
   }, [moves]);
 
+  const whiteRating = whiteAccuracy == null ? null : estimateGameRating(whiteAccuracy, whiteElo);
+  const blackRating = blackAccuracy == null ? null : estimateGameRating(blackAccuracy, blackElo);
+
   const classifications: MoveClassification[] = [
     'brilliant',
     'great',
@@ -94,6 +101,16 @@ export function GameReviewSummary({
           <div className="text-sm text-gray-400 mb-1">{blackName}</div>
           <div className="text-2xl font-bold text-white">{formatAccuracy(blackAccuracy)}</div>
         </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="text-center text-lg font-semibold text-white">{formatGameRating(whiteRating)}</div>
+        <div className="flex items-center justify-center">
+          <span className="text-gray-500 text-sm" title="Estimated Chess.com rapid rating for this game">
+            Game rating
+          </span>
+        </div>
+        <div className="text-center text-lg font-semibold text-white">{formatGameRating(blackRating)}</div>
       </div>
 
       {/* Classification Stats */}

@@ -35,6 +35,8 @@ export interface GameInfo {
   date?: string;
   event?: string;
   site?: string;
+  whiteElo?: number;
+  blackElo?: number;
 }
 
 export interface ChessGame {

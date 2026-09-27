@@ -69,7 +69,9 @@ function calculatePlayerAccuracy(moves: AnalyzedMove[]): {
     const cpLoss = move.centipawnLoss ?? 0;
     const evalBefore = (move.evaluation ?? 0) + cpLoss;
     totalCPLoss += cpLoss;
-    totalMoveAccuracy += calculateMoveAccuracy(cpLoss, evalBefore);
+    // Chess.com scores book moves as best, so they do not reduce accuracy.
+    const scoredLoss = move.classification === 'book' ? 0 : cpLoss;
+    totalMoveAccuracy += calculateMoveAccuracy(scoredLoss, evalBefore);
   }
 
   return {
@@ -81,6 +83,37 @@ function calculatePlayerAccuracy(moves: AnalyzedMove[]): {
 export function formatAccuracy(accuracy: number | null): string {
   if (accuracy == null) return '—';
   return `${accuracy.toFixed(1)}%`;
+}
+
+/**
+ * Single-game rating estimate from Chess.com accuracy.
+ *
+ * GM Kaufman's fit on Chess.com rapid games: accuracy ≈ elo/100 + 64.
+ * Below 75 that line runs about 100 points high, so the low end is pulled down.
+ * A known player rating (PGN WhiteElo / BlackElo) is mixed in at 55%, because
+ * Chess.com shrinks the guess toward the ratings on the game. A public check
+ * found that raising a stated rating by 1000 moved the displayed estimate by
+ * about 450.
+ */
+export function estimateGameRating(accuracy: number, priorRating?: number | null): number {
+  const acc = Math.min(100, Math.max(0, accuracy));
+  let fromAccuracy = (acc - 64) * 100;
+  if (acc < 75) {
+    fromAccuracy -= (75 - acc) * 20;
+  }
+  fromAccuracy = Math.min(2900, Math.max(100, fromAccuracy));
+
+  if (priorRating == null || !Number.isFinite(priorRating)) {
+    return Math.round(fromAccuracy);
+  }
+
+  const prior = Math.min(3500, Math.max(100, priorRating));
+  return Math.round(prior * 0.55 + fromAccuracy * 0.45);
+}
+
+export function formatGameRating(rating: number | null): string {
+  if (rating == null) return '—';
+  return String(rating);
 }
 
 export function formatCentipawns(centipawns: number): string {

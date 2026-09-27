@@ -14,6 +14,17 @@ import {
   toShredderFen,
 } from './chess960';
 
+export function extractPlayerElo(pgn: string, color: 'white' | 'black'): number | undefined {
+  const names = color === 'white' ? ['WhiteElo', 'WhiteRating'] : ['BlackElo', 'BlackRating'];
+  for (const name of names) {
+    const match = pgn.match(new RegExp(`\\[${name}\\s+"(-?\\d+(?:\\.\\d+)?)"\\]`));
+    if (!match) continue;
+    const value = Number(match[1]);
+    if (Number.isFinite(value)) return Math.round(value);
+  }
+  return undefined;
+}
+
 export function extractFenFromPGN(pgn: string): string | null {
   const fenMatch = pgn.match(/\[FEN\s+"([^"]+)"\]/);
   return fenMatch ? fenMatch[1] : null;

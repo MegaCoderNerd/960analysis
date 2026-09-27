@@ -255,6 +255,8 @@ function App() {
                 blackAccuracy={accuracy.black}
                 whiteName={gameData.info.white}
                 blackName={gameData.info.black}
+                whiteElo={gameData.info.whiteElo}
+                blackElo={gameData.info.blackElo}
                 moves={gameData.moves}
                 onCategoryClick={(category, color) => {
                   if (!gameData) return;

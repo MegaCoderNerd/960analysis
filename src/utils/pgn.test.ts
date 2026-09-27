@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parsePgnToPositions } from './pgn';
+import { extractPlayerElo, parsePgnToPositions } from './pgn';
 
 const EXAMPLE_960_PGN = `[Event "Rated Chess960 game"]
 [Site "https://lichess.org/abc123"]
@@ -67,5 +67,13 @@ describe('parsePgnToPositions', () => {
     const parsed = parsePgnToPositions(pgn);
     expect(parsed.error).toBeUndefined();
     expect(parsed.positions.at(-1)?.san).toBe('O-O-O');
+  });
+});
+
+describe('extractPlayerElo', () => {
+  it('reads Chess.com Elo headers', () => {
+    const pgn = '[WhiteElo "1520"]\n[BlackElo "1488"]\n\n1. e4 e5';
+    expect(extractPlayerElo(pgn, 'white')).toBe(1520);
+    expect(extractPlayerElo(pgn, 'black')).toBe(1488);
   });
 });
