@@ -1,0 +1,14 @@
+---
+description: Optimize 960analysis against the AAR review suite
+alwaysApply: true
+---
+
+# Automated alignment research (960analysis)
+
+When changing review quality, Chess960 rules, accuracy, or move labels, treat `npm run aar` as the objective. The contract lives in `aar/briefing.md`.
+
+- Hill-climb `band_edges` and `opening_book`. The headline stays at 0 until both rise above their baselines in `aar/suite.yaml`.
+- Keep `core_rules` at 1 (`passes_filter=true`).
+- Do not read `aar/secret/**` or `aar/out/heldout/**`. Do not edit `aar/eval.test.ts`, `aar/score.ts`, `aar/suite.yaml`, or `aar/secret/**` to raise the score.
+- Change product code under `src/`. The scored function is `classifyEngineMove`.
+- After a labeling change, run `npm run aar` and use `aar/out/scores.json` (held-out is already stripped).

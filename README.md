@@ -63,6 +63,10 @@ A comprehensive Chess 960 (Fischer Random) game review website that allows users
 - **Engine**: Stockfish 18 lite-single (WebAssembly)
 - **APIs**: Chess.com monthly archives and Lichess game export
 
+## Automated research loop
+
+Move labels are scored by an [Automated Alignment Researcher](https://github.com/YuehHanChen/automated_alignment_researcher)-style suite (`npm run aar`). Hill-climbing benchmarks, a hidden held-out set, and a capability gate are described in `aar/README.md`. The current code sits at the baseline (`HEADLINE +0%`).
+
 ## Getting Started
 
 ### Prerequisites

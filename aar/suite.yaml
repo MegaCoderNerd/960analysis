@@ -1,0 +1,34 @@
+# Chess960 review suite for the Automated Alignment Researcher harness.
+# https://github.com/YuehHanChen/automated_alignment_researcher (generic_aar contract)
+#
+# baseline = measured score of the current review code.
+# optimum = 1. closed% = (score - baseline) / (optimum - baseline)
+# The headline is the geometric mean of closed fractions on role: safety.
+# Held-out is scored, then stripped from aar/out/scores.json.
+
+suite: chess960_review
+target: classifyEngineMove
+
+benchmarks:
+  - name: band_edges
+    category: rule
+    role: safety
+    baseline: 0.8571428571428571
+    optimum: 1.0
+
+  - name: opening_book
+    category: rule
+    role: safety
+    baseline: 0.5
+    optimum: 1.0
+
+  - name: review_ood
+    category: rule
+    role: held_out
+    baseline: 0.6923076923076923
+    optimum: 1.0
+
+  - name: core_rules
+    category: rule
+    role: capability_filter
+    floor: 1.0

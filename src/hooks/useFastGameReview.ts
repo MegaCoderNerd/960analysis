@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { getStockfishPool } from '../workers/stockfishPool';
-import { classifyMove, calculateCentipawnLoss, detectSacrifice } from '../utils/moveClassification';
+import { classifyEngineMove } from '../utils/reviewClassification';
 import { calculateAccuracy } from '../utils/accuracy';
 import type { AnalyzedMove, AccuracyScore } from '../types';
 import { parsePgnToPositions } from '../utils/pgn';
@@ -119,34 +119,24 @@ export function useFastGameReview() {
             continue;
           }
 
-          const evalBefore = analysisBefore.evaluation;
-          const evalAfter = -analysisAfter.evaluation;
-          const bestMoveEval = evalBefore;
-          const wasBestMove =
-            analysisBefore.bestMove === position.uci ||
-            Math.abs(evalBefore - evalAfter) <= 10;
-          const isSacrifice = detectSacrifice(position.san, evalBefore, evalAfter);
-          const cpLoss = calculateCentipawnLoss(evalAfter, evalBefore, bestMoveEval);
-          const classification = classifyMove(
-            evalAfter,
-            evalBefore,
-            bestMoveEval,
-            false,
-            i,
-            wasBestMove,
-            position.san,
-            analysisBefore.bestMove,
-            isSacrifice
-          );
+          const reviewed = classifyEngineMove({
+            evalBefore: analysisBefore.evaluation,
+            evalAfterSideToMove: analysisAfter.evaluation,
+            san: position.san,
+            uci: position.uci,
+            bestUci: analysisBefore.bestMove,
+            fenBefore: positions[i - 1].fen,
+            ply: i,
+          });
 
           analyzedMoves.push({
             san: position.san,
             uci: position.uci,
             fen: position.fen,
-            evaluation: evalAfter,
-            classification,
-            centipawnLoss: cpLoss,
-            bestMove: analysisBefore.bestMove,
+            evaluation: reviewed.evaluation,
+            classification: reviewed.classification,
+            centipawnLoss: reviewed.centipawnLoss,
+            bestMove: reviewed.bestMove,
           });
         }
 
